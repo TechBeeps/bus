@@ -1,0 +1,22 @@
+/* Tailwind utility plus enhanced layout styling */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+#qr-reader {
+  min-height: 320px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+@layer components {
+  .app-panel {
+    @apply rounded-[32px] border border-slate-200 bg-white p-4 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.2)];
+  }
+}

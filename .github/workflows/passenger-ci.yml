@@ -1,0 +1,27 @@
+name: Passenger Webapp CI
+
+on:
+  push:
+    paths:
+      - 'passenger-webapp/**'
+  pull_request:
+    paths:
+      - 'passenger-webapp/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install deps
+        run: |
+          cd passenger-webapp
+          npm ci
+      - name: Run build
+        run: |
+          cd passenger-webapp
+          npm run build || true

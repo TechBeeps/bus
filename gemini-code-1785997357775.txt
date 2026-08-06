@@ -1,0 +1,38 @@
+bus-ticketing-mvp/
+├── backend/                        # FastAPI Backend Application
+│   ├── app/
+│   │   ├── api/                    # API Endpoints
+│   │   │   ├── v1/
+│   │   │   │   ├── auth.py         # Conductor & Admin Auth
+│   │   │   │   ├── buses.py        # Bus & Route Management
+│   │   │   │   ├── tickets.py      # Ticket Creation & Status
+│   │   │   │   ├── payments.py     # Payment Gateway Webhooks & Logic
+│   │   │   │   └── passes.py       # Monthly Passes & Wallet Logic
+│   │   ├── core/                   # Security, Config & Database Setup
+│   │   │   ├── config.py
+│   │   │   ├── database.py
+│   │   │   └── security.py
+│   │   ├── models/                 # SQLAlchemy DB Schemas
+│   │   │   ├── user.py
+│   │   │   ├── bus.py
+│   │   │   ├── ticket.py
+│   │   │   └── transaction.py
+│   │   ├── schemas/                # Pydantic Schemas for Validation
+│   │   └── services/               # Core Business Logic (Webhooks, Loyalty)
+│   ├── requirements.txt
+│   └── main.py                     # Entry Point
+│
+├── frontend-passenger/             # React PWA for Passengers
+│   ├── src/
+│   │   ├── components/             # UI Components (QR Display, Ticket Card)
+│   │   ├── pages/                  # Scan, Payment, Pass Screens
+│   │   ├── services/               # API Calls (UPI Deep linking)
+│   │   └── App.js
+│   └── package.json
+│
+└── conductor-app/                  # Conductor App (React Native or PWA)
+    ├── src/
+    │   ├── components/             # Live Verification Banner, Notification Alert
+    │   ├── offline/                # Offline Sync Manager
+    │   └── App.js
+    └── package.json
