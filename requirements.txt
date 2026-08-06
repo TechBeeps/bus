@@ -3,3 +3,6 @@ uvicorn[standard]
 sqlalchemy
 pydantic
 python-dotenv
+
+
+Git access token: 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

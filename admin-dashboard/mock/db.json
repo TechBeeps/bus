@@ -1,14 +1,42 @@
 {
   "buses": [
-    { "id": "BUS-101", "route": "Central Stand ➔ Tech Park", "currentConductor": "COND-01", "status": "ACTIVE" },
-    { "id": "BUS-102", "route": "Market Stand ➔ City Hospital", "currentConductor": "COND-02", "status": "ACTIVE" }
+    {
+      "id": "BUS-101",
+      "route": "Central Stand ➔ Tech Park",
+      "currentConductor": "COND-01",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "BUS-102",
+      "route": "Market Stand ➔ City Hospital",
+      "currentConductor": "COND-02",
+      "status": "ACTIVE"
+    }
   ],
   "conductors": [
-    { "id": "COND-01", "name": "Rajesh Kumar", "phone": "9876543210" },
-    { "id": "COND-02", "name": "Suresh Verma", "phone": "9876543211" }
+    {
+      "id": "COND-01",
+      "name": "Rajesh Kumar",
+      "phone": "9876543210"
+    },
+    {
+      "id": "COND-02",
+      "name": "Suresh Verma",
+      "phone": "9876543211"
+    }
   ],
   "routes": [
-    { "id": "R-1", "name": "Central to Tech Park", "from": "Central Stand", "to": "Tech Park" },
-    { "id": "R-2", "name": "Market to Hospital", "from": "Market Stand", "to": "City Hospital" }
+    {
+      "id": "R-1",
+      "name": "Central to Tech Park",
+      "from": "Central Stand",
+      "to": "Tech Park"
+    },
+    {
+      "id": "R-2",
+      "name": "Market to Hospital",
+      "from": "Market Stand",
+      "to": "City Hospital"
+    }
   ]
 }
