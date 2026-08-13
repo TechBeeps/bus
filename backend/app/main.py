@@ -5,12 +5,25 @@ from pydantic import BaseModel
 from typing import Optional
 import uvicorn
 import datetime
+import razorpay
+from app.database import get_connection
+
+
+payment_logs = {}
 
 app = FastAPI(
     title="Indian Bus Ticketing & Fintech API",
     version="1.0.0",
     description="Backend service for QR-based ticketing, payment verification, and fleet management."
 )
+
+RAZORPAY_KEY_ID = "rzp_test_LVIEo9xSbhNfUX"
+RAZORPAY_KEY_SECRET = "TFbLcznEvwrRQZ89GVKr8F8E"
+
+razorpay_client = razorpay.Client(
+    auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)
+)
+
 
 # CORS configuration for Web-App access
 app.add_middleware(
@@ -38,6 +51,21 @@ class WebhookPaymentPayload(BaseModel):
     status: str  # "SUCCESS" or "FAILED"
     amount: float
     upi_txn_id: str
+
+class CreatePaymentRequest(BaseModel):
+    bus_id: str
+    amount: float
+    # mobile: str
+    # passenger_name: str
+
+class PaymentSuccessRequest(BaseModel):
+    payment_id: str
+    razorpay_payment_id: str
+
+
+class PaymentStatusRequest(BaseModel):
+    payment_id: str
+    status: str
 
 # --- Mock In-Memory Store for MVP ---
 tickets_db = {}
@@ -124,6 +152,257 @@ def get_conductor_updates(bus_id: str):
 def notify_conductor(bus_id: str, ticket: dict):
     # Logic to send Firebase Cloud Message (FCM) or WebSocket push to Conductor's phone
     print(f"[REALTIME ALERT] Bus {bus_id} -> Payment Verified for Ticket {ticket['ticket_id']}")
+
+
+
+#13-8-26
+
+
+
+@app.post("/api/v1/payment/create")
+def create_payment(payload: CreatePaymentRequest):
+
+    payment_id = f"PAY-{int(datetime.datetime.now().timestamp())}"
+
+    cashback = 10 if payload.amount >= 100 else 0
+
+    payment_logs[payment_id] = {
+        "payment_id": payment_id,
+        "bus_id": payload.bus_id,
+        "amount": payload.amount,
+        # "mobile": payload.mobile,
+        # "passenger_name": payload.passenger_name,
+        "cashback": cashback,
+        "status": "INITIATED",
+        "created_at": str(datetime.datetime.now())
+    }
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO payments (
+        payment_id,
+        bus_id,
+        amount,
+        cashback,
+        status,
+        razorpay_order_id,
+        created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        payment_id,
+        payload.bus_id,
+        payload.amount,
+        cashback,
+        "INITIATED",
+        order["id"],
+        str(datetime.datetime.now())
+    ))
+
+    conn.commit()
+    conn.close()
+
+    print("Payment Saved:", payment_logs[payment_id])
+
+    return {
+        "success": True,
+        "payment_id": payment_id,
+        "cashback": cashback
+    }
+
+@app.get("/api/v1/payments")
+def get_payments():
+    return payment_logs
+
+
+@app.post("/api/v1/payment/order")
+def create_order(payload: CreatePaymentRequest):
+
+    payment_id = f"PAY-{int(datetime.datetime.now().timestamp())}"
+
+    cashback = round(payload.amount * 0.10, 2) if payload.amount >= 100 else 0
+
+    order = razorpay_client.order.create({
+        "amount": int(payload.amount * 100),
+        "currency": "INR",
+        "receipt": payment_id
+    })
+
+    payment_logs[payment_id] = {
+        "payment_id": payment_id,
+        "bus_id": payload.bus_id,
+        "amount": payload.amount,
+        "cashback": cashback,
+        "status": "INITIATED",
+        "razorpay_order_id": order["id"],
+        "created_at": str(datetime.datetime.now())
+    }
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    INSERT INTO payments (
+        payment_id,
+        bus_id,
+        amount,
+        cashback,
+        status,
+        razorpay_order_id,
+        created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        payment_id,
+        payload.bus_id,
+        payload.amount,
+        cashback,
+        "INITIATED",
+        order["id"],
+        str(datetime.datetime.now())
+    ))
+
+    conn.commit()
+    conn.close()
+
+    print("INSERTED:", payment_id)
+
+    return {
+        "success": True,
+        "payment_id": payment_id,
+        "cashback": cashback,
+        "razorpay_order_id": order["id"],
+        "key": RAZORPAY_KEY_ID
+    }
+
+
+@app.post("/api/v1/payment/success")
+def payment_success(payload: PaymentSuccessRequest):
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT payment_id FROM payments WHERE payment_id=?",
+        (payload.payment_id,)
+    )
+
+    row = cursor.fetchone()
+
+    if not row:
+        conn.close()
+        return {"success": False}
+
+    payment_logs[payload.payment_id]["status"] = "PAID"
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE payments
+    SET
+    status=?,
+    razorpay_payment_id=?,
+    paid_at=?
+    WHERE payment_id=?
+    """, (
+    "PAID",
+    payload.razorpay_payment_id,
+    str(datetime.datetime.now()),
+    payload.payment_id
+    ))
+
+    conn.commit()
+    conn.close()
+    payment_logs[payload.payment_id]["razorpay_payment_id"] = payload.razorpay_payment_id
+    payment_logs[payload.payment_id]["paid_at"] = str(datetime.datetime.now())
+
+    return {"success": True}
+
+
+@app.post("/api/v1/payment/update-status")
+def update_payment_status(payload: PaymentStatusRequest):
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT payment_id FROM payments WHERE payment_id=?",
+        (payload.payment_id,)
+    )
+
+    row = cursor.fetchone()
+
+    if not row:
+        conn.close()
+        return {"success": False}
+
+    payment_logs[payload.payment_id]["status"] = payload.status
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE payments
+    SET
+        status=?,
+        updated_at=?
+    WHERE payment_id=?
+    """, (
+        payload.status,
+        str(datetime.datetime.now()),
+        payload.payment_id
+    ))
+
+    conn.commit()
+    conn.close()
+
+    payment_logs[payload.payment_id]["updated_at"] = str(datetime.datetime.now())
+
+    return {"success": True}
+
+@app.get("/api/v1/payment/{payment_id}")
+def get_payment(payment_id: str):
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT *
+        FROM payments
+        WHERE payment_id = ?
+    """, (payment_id,))
+
+    row = cursor.fetchone()
+
+    conn.close()
+
+    if not row:
+        return {"success": False, "message": "Payment not found"}
+
+    return dict(row)
+
+
+
+@app.get("/api/v1/db-payments")
+def db_payments():
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM payments")
+
+    rows = cursor.fetchall()
+
+    conn.close()
+
+    return [dict(row) for row in rows]
+
+
+
+
+
 
 
 if __name__ == "__main__":
