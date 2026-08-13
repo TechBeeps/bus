@@ -159,58 +159,58 @@ def notify_conductor(bus_id: str, ticket: dict):
 
 
 
-@app.post("/api/v1/payment/create")
-def create_payment(payload: CreatePaymentRequest):
+# @app.post("/api/v1/payment/create")
+# def create_payment(payload: CreatePaymentRequest):
 
-    payment_id = f"PAY-{int(datetime.datetime.now().timestamp())}"
+#     payment_id = f"PAY-{int(datetime.datetime.now().timestamp())}"
 
-    cashback = 10 if payload.amount >= 100 else 0
+#     cashback = 10 if payload.amount >= 100 else 0
 
-    payment_logs[payment_id] = {
-        "payment_id": payment_id,
-        "bus_id": payload.bus_id,
-        "amount": payload.amount,
-        # "mobile": payload.mobile,
-        # "passenger_name": payload.passenger_name,
-        "cashback": cashback,
-        "status": "INITIATED",
-        "created_at": str(datetime.datetime.now())
-    }
+#     payment_logs[payment_id] = {
+#         "payment_id": payment_id,
+#         "bus_id": payload.bus_id,
+#         "amount": payload.amount,
+#         # "mobile": payload.mobile,
+#         # "passenger_name": payload.passenger_name,
+#         "cashback": cashback,
+#         "status": "INITIATED",
+#         "created_at": str(datetime.datetime.now())
+#     }
 
-    conn = get_connection()
-    cursor = conn.cursor()
+#     conn = get_connection()
+#     cursor = conn.cursor()
 
-    cursor.execute("""
-        INSERT INTO payments (
-        payment_id,
-        bus_id,
-        amount,
-        cashback,
-        status,
-        razorpay_order_id,
-        created_at
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (
-        payment_id,
-        payload.bus_id,
-        payload.amount,
-        cashback,
-        "INITIATED",
-        order["id"],
-        str(datetime.datetime.now())
-    ))
+#     cursor.execute("""
+#         INSERT INTO payments (
+#         payment_id,
+#         bus_id,
+#         amount,
+#         cashback,
+#         status,
+#         razorpay_order_id,
+#         created_at
+#     )
+#     VALUES (?, ?, ?, ?, ?, ?, ?)
+#     """, (
+#         payment_id,
+#         payload.bus_id,
+#         payload.amount,
+#         cashback,
+#         "INITIATED",
+#         "",  # Placeholder for razorpay_order_id
+#         str(datetime.datetime.now())
+#     ))
 
-    conn.commit()
-    conn.close()
+#     conn.commit()
+#     conn.close()
 
-    print("Payment Saved:", payment_logs[payment_id])
+#     print("Payment Saved:", payment_logs[payment_id])
 
-    return {
-        "success": True,
-        "payment_id": payment_id,
-        "cashback": cashback
-    }
+#     return {
+#         "success": True,
+#         "payment_id": payment_id,
+#         "cashback": cashback
+#     }
 
 @app.get("/api/v1/payments")
 def get_payments():
