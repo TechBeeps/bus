@@ -15,7 +15,7 @@ export default function TicketPage() {
   const loadPayment = async () => {
     try {
       const res = await axios.get(
-        `http://127.0.0.1:8000/api/v1/payment/${paymentId}`
+        `https://api.techbeeps.co.in/api/v1/payment/${paymentId}`
       );
 
       setPayment(res.data);
