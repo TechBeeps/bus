@@ -55,7 +55,7 @@ class WebhookPaymentPayload(BaseModel):
 class CreatePaymentRequest(BaseModel):
     bus_id: str
     amount: float
-    # mobile: str
+    mobile: str
     # passenger_name: str
 
 class PaymentSuccessRequest(BaseModel):
@@ -251,9 +251,10 @@ def create_order(payload: CreatePaymentRequest):
         cashback,
         status,
         razorpay_order_id,
-        created_at
+        created_at,
+        phone_number
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         payment_id,
         payload.bus_id,
@@ -261,7 +262,8 @@ def create_order(payload: CreatePaymentRequest):
         cashback,
         "INITIATED",
         order["id"],
-        str(datetime.datetime.now())
+        str(datetime.datetime.now()),
+        payload.mobile
     ))
 
     conn.commit()
