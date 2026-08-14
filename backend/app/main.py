@@ -222,7 +222,7 @@ def create_order(payload: CreatePaymentRequest):
 
     payment_id = f"PAY-{int(datetime.datetime.now().timestamp())}"
 
-    cashback = round(payload.amount * 0.10, 2) if payload.amount >= 100 else 0
+    cashback = round(payload.amount * 0.10, 2)
 
     order = razorpay_client.order.create({
         "amount": int(payload.amount * 100),
