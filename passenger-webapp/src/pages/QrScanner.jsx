@@ -1,37 +1,12 @@
 import React, { useEffect } from "react";
-import { Html5QrcodeScanner } from "html5-qrcode";
 import { useNavigate } from "react-router-dom";
+import QRCode from "react-qr-code";
+
 
 export default function QrScanner() {
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const scanner = new Html5QrcodeScanner(
-      "qr-reader",
-      {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
-      },
-      false
-    );
-
-    scanner.render(
-      (decodedText) => {
-          console.log("QR:", decodedText);
-        const busId = decodedText || "BUS001";
-
-        scanner.clear().catch(() => {});
-
-        navigate(`/bus/${busId}`);
-      },
-      () => {}
-    );
-
-    return () => {
-      scanner.clear().catch(() => {});
-    };
-  }, [navigate]);
-
+  
   
   
   return (
@@ -67,9 +42,18 @@ export default function QrScanner() {
             </p>
           </div>
 
-          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50">
+          {/* <div className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50">
             <div id="qr-reader" className="min-h-[320px]" />
-          </div>
+          </div> */}
+
+            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 p-6">
+              <div className="flex justify-center">
+                <QRCode
+                value="https://bus.techbeeps.co.in/bus/BUS001"
+                size={250}
+                />
+              </div>
+            </div>
 
           <button
             onClick={() => navigate("/bus/BUS001")}
