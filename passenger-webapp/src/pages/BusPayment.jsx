@@ -37,7 +37,7 @@ const handlePay = async () => {
     
         
         await axios.post(
-          "http://127.0.0.1:8000/api/v1/payment/success",
+         "https://api.techbeeps.co.in/api/v1/payment/success",
           {
             payment_id: data.payment_id,
             razorpay_payment_id:
@@ -53,7 +53,7 @@ const handlePay = async () => {
         ondismiss: async function () {
 
             await axios.post(
-            "http://127.0.0.1:8000/api/v1/payment/update-status",
+            "https://api.techbeeps.co.in/api/v1/payment/update-status",
             {
                 payment_id: data.payment_id,
                 status: "CANCELLED"
@@ -73,7 +73,7 @@ const handlePay = async () => {
 
       try {
         await axios.post(
-          "http://127.0.0.1:8000/api/v1/payment/update-status",
+          "https://api.techbeeps.co.in/api/v1/payment/update-status",
           {
             payment_id: data.payment_id,
             status: "FAILED",
