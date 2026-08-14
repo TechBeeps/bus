@@ -15,7 +15,7 @@ const handlePay = async () => {
   try {
 
     const response = await axios.post(
-      "http://127.0.0.1:8000/api/v1/payment/order",
+      "https://api.techbeeps.co.in/api/v1/payment/order",
       {
         bus_id: busId,
         amount: Number(amount)
