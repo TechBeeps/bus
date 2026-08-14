@@ -2,23 +2,24 @@ import React, { useState } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-
+import config from "../config";
 
 export default function BusPayment() {
   const { busId } = useParams();
- const navigate = useNavigate();
+  const navigate = useNavigate();
   const [amount, setAmount] = useState("");
-//   const [mobile, setMobile] = useState("");
-//   const [passengerName, setPassengerName] = useState("");
+  const [mobile, setMobile] = useState("");
+//const [passengerName, setPassengerName] = useState("");
 
 const handlePay = async () => {
   try {
 
     const response = await axios.post(
-      "https://api.techbeeps.co.in/api/v1/payment/order",
+      `${config.API_URL}/payment/order`,
       {
         bus_id: busId,
-        amount: Number(amount)
+        amount: Number(amount),
+        mobile: mobile,
       }
     );
 
@@ -37,7 +38,7 @@ const handlePay = async () => {
     
         
         await axios.post(
-         "https://api.techbeeps.co.in/api/v1/payment/success",
+          `${config.API_URL}/payment/success`,
           {
             payment_id: data.payment_id,
             razorpay_payment_id:
@@ -53,7 +54,7 @@ const handlePay = async () => {
         ondismiss: async function () {
 
             await axios.post(
-            "https://api.techbeeps.co.in/api/v1/payment/update-status",
+            "${config.API_URL}/payment/update-status",
             {
                 payment_id: data.payment_id,
                 status: "CANCELLED"
@@ -73,7 +74,7 @@ const handlePay = async () => {
 
       try {
         await axios.post(
-          "https://api.techbeeps.co.in/api/v1/payment/update-status",
+          "${config.API_URL}/payment/update-status",
           {
             payment_id: data.payment_id,
             status: "FAILED",
@@ -167,7 +168,7 @@ const handlePay = async () => {
             />
           </div>
 
-          {/* <div className="mb-5">
+          <div className="mb-5">
             <label className="mb-2 block font-medium">
               Mobile Number
             </label>
@@ -179,7 +180,7 @@ const handlePay = async () => {
               value={mobile}
               onChange={(e) => setMobile(e.target.value)}
             />
-          </div> */}
+          </div>
 
           <button
             onClick={handlePay}

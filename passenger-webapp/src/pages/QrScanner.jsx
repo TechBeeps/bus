@@ -49,7 +49,7 @@ export default function QrScanner() {
             <div className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 p-6">
               <div className="flex justify-center">
                 <QRCode
-                value="https://bus.techbeeps.co.in/bus/BUS001"
+                value="${config.API_URL}/bus/BUS001"
                 size={250}
                 />
               </div>
