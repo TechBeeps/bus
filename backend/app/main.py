@@ -495,7 +495,20 @@ def ticketsByid(bus_id: str):
         conn = get_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT id as ticket_id, amount, origin, destination, passenger_count, razorpay_payment_id, created_at FROM payments WHERE bus_id = ?", (bus_id,))
+        cursor.execute("""
+            SELECT
+                id AS ticket_id,
+                amount,
+                origin,
+                destination,
+                passenger_count,
+                razorpay_payment_id,
+                created_at
+            FROM payments
+            WHERE bus_id = ?
+            AND status = ?
+            AND date(created_at) = date('now', 'localtime')
+        """, (bus_id, "PAID"))
 
         rows = cursor.fetchall()
 
