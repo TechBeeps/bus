@@ -7,7 +7,7 @@ import uvicorn
 import datetime
 import razorpay
 from app.database import get_connection
-
+import requests
 
 payment_logs = {}
 
@@ -348,7 +348,49 @@ def payment_success(payload: PaymentSuccessRequest):
     ))
 
     conn.commit()
+
+    cursor.execute("""
+    SELECT origin, destination, amount
+    FROM payments
+    WHERE payment_id=?
+    """, (payload.payment_id,))
+
+    ticket = cursor.fetchone()
+
+    origin = ticket[0]
+    destination = ticket[1]
+    amount = ticket[2]
+
+    # Push Notification
+    expo_token = "ExponentPushToken[fsvh3yPUuqi2Smlr5J__WO]"
+
+    push_payload = {
+        "to": expo_token,
+        "title": "New Ticket Booked",
+        "body": f"{origin} → {destination} | ₹{amount}",
+        "data": {
+            "screen": "Notification",
+            "payment_id": payload.payment_id
+        }
+    }
+
+    try:
+        requests.post(
+            "https://exp.host/--/api/v2/push/send",
+            json=push_payload,
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json"
+            }
+        )
+    except Exception as e:
+        print("Push Error:", e)
+
+
     conn.close()
+
+    
+
     payment_logs[payload.payment_id]["razorpay_payment_id"] = payload.razorpay_payment_id
     payment_logs[payload.payment_id]["paid_at"] = str(datetime.datetime.now())
 
