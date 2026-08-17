@@ -1,0 +1,217 @@
+{
+  "nav": {
+    "home": "Home",
+    "routes": "Routes",
+    "qrPayment": "QR Payment",
+    "about": "About",
+    "language": "हिन्दी"
+  },
+  "hero": {
+    "badge": "मेवाड़ क्षेत्र, राजस्थान",
+    "headline": "Shree Mateshwari Enterprises",
+    "subheadlineHi": "श्री मातेश्वरी एंटरप्राइजेज",
+    "accent": "Connecting Mewar, One Journey at a Time",
+    "description": "Affordable, reliable local bus services across the Mewar region of Rajasthan",
+    "viewRoutes": "View Routes",
+    "payByQr": "Pay by QR"
+  },
+  "homeRoutes": {
+    "title": "Our Bus Routes",
+    "subtitle": "Connecting every corner of Mewar with affordable, comfortable travel",
+    "viewAllRoutes": "View All Routes",
+    "viceVersa": "& Vice Versa",
+    "dailyService": "Daily Service",
+    "fromLabel": "From",
+    "routes": [
+      {
+        "from": "Barisadri",
+        "to": "Udaipur",
+        "duration": "3h 30m",
+        "price": "80"
+      },
+      {
+        "from": "Nimbahera",
+        "to": "Udaipur",
+        "duration": "2h 45m",
+        "price": "60"
+      },
+      {
+        "from": "Neemuch",
+        "to": "Udaipur",
+        "duration": "4h",
+        "price": "90"
+      },
+      {
+        "from": "Chittorgarh",
+        "to": "Udaipur",
+        "duration": "1h 45m",
+        "price": "45"
+      },
+      {
+        "from": "Bhilwara",
+        "to": "Udaipur",
+        "duration": "3h",
+        "price": "70"
+      },
+      {
+        "from": "Kanore",
+        "to": "Nimbahera",
+        "duration": "45m",
+        "price": "25"
+      }
+    ]
+  },
+  "homeAbout": {
+    "title": "About Our Company",
+    "subtitle": "Trusted transport partner of Mewar since 2009",
+    "founderName": "Mr. Narendra Kumar Purbiya",
+    "founderRole": "Founder & Owner",
+    "p1": "Shree Mateshwari Enterprises has been proudly serving the people of Mewar region for over 15 years. Founded by Mr. Narendra Kumar Purbiya, our mission is simple — provide safe, affordable, and reliable bus services to every corner of Rajasthan's heartland.",
+    "p2": "We operate multiple daily routes connecting Udaipur, Chittorgarh, Bhilwara, Nimbahera, Neemuch, Barisadri, Kanore and surrounding areas. Our buses run on nominal prices so that every commuter — student, farmer, or professional — can travel with dignity.",
+    "pill1": "Nominal Fares",
+    "pill2": "Safe & Reliable",
+    "pill3": "Daily Service",
+    "pill4": "Mewar Region",
+    "readMore": "Read more about us"
+  },
+  "homeQRPay": {
+    "title": "Pay by QR & Get Cashback!",
+    "subtitle": "Scan our dynamic QR code to pay your bus fare digitally — and earn cashback on every trip!",
+    "cashbackBadge": "CASHBACK!",
+    "f1": "Dynamic QR per journey",
+    "f2": "Instant cashback offers",
+    "f3": "UPI / all wallets accepted",
+    "f4": "No cash needed",
+    "btn": "Open QR Payment"
+  },
+  "homeWhyUs": {
+    "title": "Why Choose Us?",
+    "c1Title": "Nominal Prices",
+    "c1Desc": "Fares that every commuter can afford — students, farmers, and daily workers.",
+    "c2Title": "Safe & Reliable",
+    "c2Desc": "Experienced drivers, well-maintained buses, and safe journeys every time.",
+    "c3Title": "Daily Service",
+    "c3Desc": "Regular daily services on all routes so you never miss your connection."
+  },
+  "about": {
+    "pageHeadline": "About Our Company",
+    "pageSubheadline": "Trusted transport partner of Mewar since 2009",
+    "founderName": "Mr. Narendra Kumar Purbiya",
+    "founderRole": "Founder & Owner",
+    "p1": "Shree Mateshwari Enterprises has been proudly serving the people of Mewar region for over 15 years. Founded by Mr. Narendra Kumar Purbiya, our mission is simple — provide safe, affordable, and reliable bus services to every corner of Rajasthan's heartland.",
+    "p2": "We operate multiple daily routes connecting Udaipur, Chittorgarh, Bhilwara, Nimbahera, Neemuch, Barisadri, Kanore and surrounding areas. Our buses run on nominal prices so that every commuter — student, farmer, or professional — can travel with dignity.",
+    "pill1": "Nominal Prices",
+    "pill2": "Safe & Reliable",
+    "pill3": "Daily Service",
+    "pill4": "Mewar Region",
+    "contactBoxTitle": "Contact Us",
+    "locationVal": "Mewar Region, Rajasthan, India",
+    "phoneVal": "+91 99282 61238",
+    "emailVal": "info@shreemateshwari.in"
+  },
+  "routes": {
+    "pageHeadline": "Our Bus Routes",
+    "pageSubheadline": "Connecting every corner of Mewar with affordable, comfortable travel",
+    "viceVersa": "& Vice Versa",
+    "fromLabel": "From",
+    "departureTimes": "DEPARTURE TIMES",
+    "payByQrBtn": "Pay by QR & Get Cashback",
+    "list": [
+      {
+        "from": "Barisadri",
+        "to": "Udaipur",
+        "price": "80",
+        "duration": "3h 30m",
+        "distance": "~130 km",
+        "times": ["5:00 AM", "9:00 AM", "1:00 PM", "5:00 PM"]
+      },
+      {
+        "from": "Nimbahera",
+        "to": "Udaipur",
+        "price": "60",
+        "duration": "2h 45m",
+        "distance": "~100 km",
+        "times": ["6:30 AM", "10:00 AM", "2:00 PM", "6:00 PM"]
+      },
+      {
+        "from": "Neemuch",
+        "to": "Udaipur",
+        "price": "90",
+        "duration": "4h",
+        "distance": "~160 km",
+        "times": ["5:30 AM", "8:00 AM", "12:00 PM", "4:00 PM"]
+      },
+      {
+        "from": "Chittorgarh",
+        "to": "Udaipur",
+        "price": "45",
+        "duration": "1h 45m",
+        "distance": "~70 km",
+        "times": ["7:00 AM", "10:30 AM", "2:30 PM", "6:30 PM"]
+      },
+      {
+        "from": "Bhilwara",
+        "to": "Udaipur",
+        "price": "70",
+        "duration": "3h",
+        "distance": "~120 km",
+        "times": ["6:00 AM", "9:30 AM", "1:30 PM", "5:30 PM"]
+      },
+      {
+        "from": "Kanore",
+        "to": "Nimbahera",
+        "price": "25",
+        "duration": "45m",
+        "distance": "~30 km",
+        "times": ["7:30 AM", "11:00 AM", "3:00 PM", "7:00 PM"]
+      }
+    ]
+  },
+  "qrPayment": {
+    "pageHeadline": "Pay by QR & Get Cashback!",
+    "pageSubheadline": "Scan our dynamic QR code to pay your bus fare digitally — and earn cashback on every trip!",
+    "comingSoonTitle": "QR Payment System Coming Soon",
+    "comingSoonDesc": "We are building a dynamic QR code system that will make digital fare payment easy — with cashback on every trip.",
+    "f1": "Dynamic QR per journey",
+    "f2": "Instant cashback offers",
+    "f3": "UPI / all wallets accepted",
+    "f4": "No cash needed",
+    "viewAllRoutes": "View All Routes"
+  },
+  "footer": {
+    "brandTagline": "Connecting Mewar, One Journey at a Time",
+    "ownerCredit": "Owned by Mr. Narendra Kumar Purbiya",
+    "quickLinks": "Quick Links",
+    "popularRoutes": "Popular Routes",
+    "contactUs": "Contact Us",
+    "addressVal": "Mangalwar Choraha, Chittorgarh, Rajasthan",
+    "phoneVal": "+91 96360 48785",
+    "emailVal": "info@shreemateshwaribus.com",
+    "privacyPolicy": "Privacy Policy",
+    "termsConditions": "Terms & Conditions",
+    "refundPolicy": "Refund & Cancellation Policy",
+    "copyright": "© 2026 Shree Mateshwari Enterprises. All rights reserved."
+  },
+  "meta": {
+    "home": {
+      "title": "Shree Mateshwari Enterprises — SME Buses | Connecting Mewar",
+      "description": "Affordable, reliable local bus services across the Mewar region of Rajasthan. Daily routes connecting Udaipur, Chittorgarh, Bhilwara, Nimbahera, Neemuch, Barisadri."
+    },
+    "routes": {
+      "title": "Our Bus Routes & Schedules | Shree Mateshwari Enterprises",
+      "description": "Daily bus routes, departure timings, and ticket fares connecting Udaipur, Chittorgarh, Nimbahera, Neemuch, Bhilwara, Barisadri, Kanore."
+    },
+    "qrPayment": {
+      "title": "Pay by QR & Get Cashback | Shree Mateshwari Enterprises",
+      "description": "Scan our dynamic QR code to pay your bus fare digitally with instant cashback offers on every trip."
+    },
+    "about": {
+      "title": "About Us | Shree Mateshwari Enterprises — SME Buses",
+      "description": "Trusted transport partner of Mewar since 2009. Founded by Mr. Narendra Kumar Purbiya, providing safe and reliable bus services."
+    },
+    "refundPolicy": {
+      "title": "Refund & Cancellation Policy | Shree Mateshwari Enterprises",
+      "description": "Read the official Refund & Cancellation Policy for bus bookings with Shree Mateshwari Enterprises."
+    }
+  }
+}
