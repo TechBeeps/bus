@@ -21,6 +21,28 @@ CREATE TABLE IF NOT EXISTS payments (
 )
 """)
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS push_token (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token TEXT,
+    created_at TEXT,
+    updated_at TEXT
+)
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS user (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mobile_number TEXT UNIQUE,
+    user_pin TEXT,
+    cashback REAL,
+    created_at TEXT,
+    updated_at TEXT
+)
+""")
+
+
+
 # Check if phone_number column exists
 cursor.execute("PRAGMA table_info(payments)")
 columns = [col[1] for col in cursor.fetchall()]
@@ -41,7 +63,16 @@ if "passenger_count" not in columns:
     ADD COLUMN passenger_count INTEGER
     """)
 
-   # print("passenger_count column added")
+cursor.execute("PRAGMA table_info(push_token)")
+columns = [col[1] for col in cursor.fetchall()]
+
+if "updated_at" not in columns:
+    cursor.execute("""
+    ALTER TABLE push_token
+    ADD COLUMN updated_at TEXT
+    """)
+    print("updated_at column added")
+
 
 conn.commit()
 conn.close()

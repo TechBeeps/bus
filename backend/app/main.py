@@ -67,6 +67,9 @@ class PaymentStatusRequest(BaseModel):
     payment_id: str
     status: str
 
+class pushnotification(BaseModel):
+    token: str
+
 # --- Mock In-Memory Store for MVP ---
 tickets_db = {}
 conductor_live_alerts = {}
@@ -367,12 +370,20 @@ def payment_success(payload: PaymentSuccessRequest):
 
     push_payload = {
         "to": expo_token,
-        "title": "New Ticket Booked for Bus " + bus_id,
-        "body": f"{origin} → {destination} | ₹{amount}",
+        "title": "New Ticket Booked",
+        "body": (
+        f"Bus No: {bus_id}\n"
+        f"Route: {origin} → {destination}\n"
+        f"Fare: ₹{amount}\n"
+        f"Ticket ID: {payload.payment_id}"
+        ),
         "data": {
-            "screen": "Notification",
-            "payment_id": payload.payment_id,
-            "bus_id": bus_id
+            "razorpay_payment_id": payload.payment_id,
+            "bus_id": bus_id,
+            "ticket_id": payload.payment_id,
+            "amount": amount,
+            "origin": origin,
+            "destination": destination
         }
     }
 
@@ -504,6 +515,58 @@ def ticketsByid(bus_id: str):
         return {"success": False, "message": "Invalid bus_id"}
 
     
+
+#add push notification token
+@app.post("/api/v1/push-token")
+def add_push_token(payload: pushnotification):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    now = str(datetime.datetime.now())
+
+    # Check token already exists
+    cursor.execute(
+        "SELECT id FROM push_token WHERE token = ?",
+        (payload.token,)
+    )
+    existing_token = cursor.fetchone()
+
+    if existing_token:
+        # Existing token -> update time
+        cursor.execute("""
+            UPDATE push_token
+            SET updated_at = ?
+            WHERE token = ?
+        """, (now, payload.token))
+    else:
+        # New token -> insert
+        cursor.execute("""
+            INSERT INTO push_token (token, created_at, updated_at)
+            VALUES (?, ?, ?)
+        """, (payload.token, now, now))
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "success": True,
+        "message": "Push token added successfully"
+    }
+
+
+#viewall token
+
+@app.get("/api/v1/push-token")
+def view_push_tokens():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM push_token")
+    rows = cursor.fetchall()
+
+    conn.close()
+
+    return [dict(row) for row in rows]
 
 
 
