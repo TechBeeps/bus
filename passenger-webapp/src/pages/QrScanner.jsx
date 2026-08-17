@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import QRCode from "react-qr-code";
 import config from "../config";
@@ -7,7 +7,25 @@ export default function QrScanner() {
   const navigate = useNavigate();
 
   
-  
+  const buses = [
+    {
+      id: "BUS001",
+      busNo: "RJ14PA1234",
+      route: "Bari Sadri → Udaipur",
+    },
+    {
+      id: "BUS002",
+      busNo: "RJ14PA5678",
+      route: "Nimbahera → Udaipur",
+    },
+    {
+      id: "BUS003",
+      busNo: "RJ14PA1212",
+      route: "Neemuch → Udaipur",
+    },
+  ];
+
+  const [selectedBus, setSelectedBus] = useState(buses[0]);
   
   return (
     <div className="min-h-screen bg-slate-50">
@@ -32,6 +50,27 @@ export default function QrScanner() {
 
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
 
+        <div className="mb-4">
+            <h2 className="text-lg font-semibold">
+              Select Bus
+            </h2>
+            <select
+            className="mb-4 w-full rounded-xl border p-3"
+            value={selectedBus.id}
+            onChange={(e) => {
+              const bus = buses.find(
+                (item) => item.id === e.target.value
+              );
+              setSelectedBus(bus);
+            }}
+          >
+            {buses.map((bus) => (
+              <option key={bus.id} value={bus.id}>
+                {bus.id} - {bus.route}
+              </option>
+            ))}
+          </select>
+        </div>
           <div className="mb-4">
             <h2 className="text-lg font-semibold">
               Scan Bus QR Code
@@ -48,15 +87,15 @@ export default function QrScanner() {
 
             <div className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 p-6">
               <div className="flex justify-center">
-                <QRCode
-                value={`${config.API_URL}/bus/BUS001`}
+                 <QRCode
+                value={`${config.BASE_URL}/bus/${selectedBus.id}`}
                 size={250}
-                />
+              />
               </div>
             </div>
 
           <button
-            onClick={() => navigate("/bus/BUS001")}
+            onClick={() => navigate(`/bus/${selectedBus.id}`)}
             className="mt-5 w-full rounded-3xl bg-indigo-600 px-6 py-3.5 text-sm font-semibold text-white"
           >
             Continue Without Scan
