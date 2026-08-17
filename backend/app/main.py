@@ -353,7 +353,7 @@ def payment_success(payload: PaymentSuccessRequest):
     conn.commit()
 
     cursor.execute("""
-    SELECT origin, destination, amount, bus_id, id
+    SELECT origin, destination, amount, bus_id, id AS ticket_id
     FROM payments
     WHERE payment_id=?
     """, (payload.payment_id,))
