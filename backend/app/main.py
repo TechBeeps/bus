@@ -350,7 +350,7 @@ def payment_success(payload: PaymentSuccessRequest):
     conn.commit()
 
     cursor.execute("""
-    SELECT origin, destination, amount
+    SELECT origin, destination, amount, bus_id
     FROM payments
     WHERE payment_id=?
     """, (payload.payment_id,))
@@ -360,17 +360,19 @@ def payment_success(payload: PaymentSuccessRequest):
     origin = ticket[0]
     destination = ticket[1]
     amount = ticket[2]
+    bus_id = ticket[3]
 
     # Push Notification
     expo_token = "ExponentPushToken[fsvh3yPUuqi2Smlr5J__WO]"
 
     push_payload = {
         "to": expo_token,
-        "title": "New Ticket Booked",
+        "title": "New Ticket Booked for Bus " + bus_id,
         "body": f"{origin} → {destination} | ₹{amount}",
         "data": {
             "screen": "Notification",
-            "payment_id": payload.payment_id
+            "payment_id": payload.payment_id,
+            "bus_id": bus_id
         }
     }
 
