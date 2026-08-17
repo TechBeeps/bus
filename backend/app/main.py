@@ -365,11 +365,19 @@ def payment_success(payload: PaymentSuccessRequest):
     amount = ticket[2]
     bus_id = ticket[3]
 
+    cursor.execute("""
+        SELECT token FROM push_token
+    """)
+
+    rows = cursor.fetchall()
+    
+    expo_tokens = [row[0] for row in rows]
+
     # Push Notification
-    expo_token = "ExponentPushToken[fsvh3yPUuqi2Smlr5J__WO]"
+    #expo_token = "ExponentPushToken[fsvh3yPUuqi2Smlr5J__WO]"
 
     push_payload = {
-        "to": expo_token,
+        "to": expo_tokens,
         "title": "New Ticket Booked",
         "body": (
         f"Bus No: {bus_id}\n"
