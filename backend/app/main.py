@@ -332,7 +332,7 @@ def payment_success(payload: PaymentSuccessRequest):
         conn.close()
         return {"success": False}
 
-    payment_logs[payload.payment_id]["status"] = "PAID"
+    #payment_logs[payload.payment_id]["status"] = "PAID"
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -371,8 +371,12 @@ def payment_success(payload: PaymentSuccessRequest):
     """)
 
     rows = cursor.fetchall()
+
+    
     
     expo_tokens = [row[0] for row in rows]
+
+    print("Push Tokens:", expo_tokens)
 
     # Push Notification
     #expo_token = "ExponentPushToken[fsvh3yPUuqi2Smlr5J__WO]"
@@ -413,8 +417,8 @@ def payment_success(payload: PaymentSuccessRequest):
 
     
 
-    payment_logs[payload.payment_id]["razorpay_payment_id"] = payload.razorpay_payment_id
-    payment_logs[payload.payment_id]["paid_at"] = str(datetime.datetime.now())
+    #payment_logs[payload.payment_id]["razorpay_payment_id"] = payload.razorpay_payment_id
+    #payment_logs[payload.payment_id]["paid_at"] = str(datetime.datetime.now())
 
     return {"success": True}
 
