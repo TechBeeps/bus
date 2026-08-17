@@ -7,56 +7,23 @@ import { Bus, Clock, MapPin, ArrowRight } from "lucide-react";
 export default function RoutesView() {
   const t = useTranslations("routes");
 
-  const routes = [
-    {
-      from: t("list.0.from"),
-      to: t("list.0.to"),
-      price: t("list.0.price"),
-      duration: t("list.0.duration"),
-      distance: t("list.0.distance"),
-      times: ["5:00 AM", "9:00 AM", "1:00 PM", "5:00 PM"],
-    },
-    {
-      from: t("list.1.from"),
-      to: t("list.1.to"),
-      price: t("list.1.price"),
-      duration: t("list.1.duration"),
-      distance: t("list.1.distance"),
-      times: ["6:30 AM", "10:00 AM", "2:00 PM", "6:00 PM"],
-    },
-    {
-      from: t("list.2.from"),
-      to: t("list.2.to"),
-      price: t("list.2.price"),
-      duration: t("list.2.duration"),
-      distance: t("list.2.distance"),
-      times: ["5:30 AM", "8:00 AM", "12:00 PM", "4:00 PM"],
-    },
-    {
-      from: t("list.3.from"),
-      to: t("list.3.to"),
-      price: t("list.3.price"),
-      duration: t("list.3.duration"),
-      distance: t("list.3.distance"),
-      times: ["7:00 AM", "10:30 AM", "2:30 PM", "6:30 PM"],
-    },
-    {
-      from: t("list.4.from"),
-      to: t("list.4.to"),
-      price: t("list.4.price"),
-      duration: t("list.4.duration"),
-      distance: t("list.4.distance"),
-      times: ["6:00 AM", "9:30 AM", "1:30 PM", "5:30 PM"],
-    },
-    {
-      from: t("list.5.from"),
-      to: t("list.5.to"),
-      price: t("list.5.price"),
-      duration: t("list.5.duration"),
-      distance: t("list.5.distance"),
-      times: ["7:30 AM", "11:00 AM", "3:00 PM", "7:00 PM"],
-    },
+  const scheduleTimes = [
+    ["6:00 AM", "10:00 AM", "2:00 PM", "5:30 PM"],
+    ["5:30 AM", "9:30 AM", "1:30 PM", "5:00 PM"],
+    ["6:30 AM", "10:30 AM", "2:30 PM", "6:00 PM"],
+    ["7:00 AM", "11:00 AM", "3:00 PM", "6:30 PM"],
+    ["7:30 AM", "11:30 AM", "3:30 PM", "7:00 PM"],
+    ["7:00 AM", "10:30 AM", "2:30 PM", "6:30 PM"],
   ];
+
+  const routes = [0, 1, 2, 3, 4, 5].map((i) => ({
+    from: t(`list.${i}.from`),
+    to: t(`list.${i}.to`),
+    price: t(`list.${i}.price`),
+    duration: t(`list.${i}.duration`),
+    distance: t(`list.${i}.distance`),
+    times: scheduleTimes[i],
+  }));
 
   return (
     <div className="flex flex-col">      

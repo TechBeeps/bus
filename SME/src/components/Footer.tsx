@@ -6,12 +6,12 @@ export default function Footer() {
   const t = useTranslations("footer");
 
   const popularRoutes = [
-    { name: "Barisadri → Udaipur", href: "/routes" },
-    { name: "Nimbahera → Udaipur", href: "/routes" },
+    { name: "Fatehnagar → Barisadri", href: "/routes" },
+    { name: "Salumbar → Bhilwara", href: "/routes" },
+    { name: "Bhinder → Bhilwara", href: "/routes" },
+    { name: "Aawari Mata Ji → Udaipur", href: "/routes" },
+    { name: "Mangalwar → Kanore", href: "/routes" },
     { name: "Chittorgarh → Udaipur", href: "/routes" },
-    { name: "Bhilwara → Udaipur", href: "/routes" },
-    { name: "Neemuch → Udaipur", href: "/routes" },
-    { name: "Kanore → Nimbahera", href: "/routes" },
   ];
 
   return (

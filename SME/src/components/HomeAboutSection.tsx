@@ -31,7 +31,7 @@ export default function HomeAboutSection() {
                 <div className="relative w-full h-full rounded-full overflow-hidden">
                   <Image
                     src="/images/portrait 1.jpg"
-                    alt="Mr. Narendra Kumar Purbiya - Founder & Owner"
+                    alt={`${t("founderName")} - ${t("founderRole")}`}
                     height={1529}
                     width={1358}
                     className="object-cover object-top"

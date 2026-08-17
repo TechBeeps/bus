@@ -103,7 +103,7 @@ export function BusinessSchema({ locale }: { locale: string }) {
     sameAs: [
       "https://facebook.com/smebuses",
       "https://instagram.com/smebuses",
-      "https://wa.me/919876543210",
+      "https://wa.me/919928261238",
     ],
   };
 

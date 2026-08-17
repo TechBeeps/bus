@@ -24,50 +24,50 @@
     "fromLabel": "From",
     "routes": [
       {
-        "from": "Barisadri",
-        "to": "Udaipur",
-        "duration": "3h 30m",
-        "price": "80"
-      },
-      {
-        "from": "Nimbahera",
-        "to": "Udaipur",
-        "duration": "2h 45m",
+        "from": "Fatehnagar",
+        "to": "Barisadri",
+        "duration": "2h 15m",
         "price": "60"
       },
       {
-        "from": "Neemuch",
-        "to": "Udaipur",
-        "duration": "4h",
+        "from": "Salumbar",
+        "to": "Bhilwara",
+        "duration": "4h 30m",
+        "price": "120"
+      },
+      {
+        "from": "Bhinder",
+        "to": "Bhilwara",
+        "duration": "3h 15m",
         "price": "90"
+      },
+      {
+        "from": "Aawari Mata Ji",
+        "to": "Udaipur",
+        "duration": "2h 30m",
+        "price": "75"
+      },
+      {
+        "from": "Mangalwar",
+        "to": "Kanore",
+        "duration": "45m",
+        "price": "25"
       },
       {
         "from": "Chittorgarh",
         "to": "Udaipur",
         "duration": "1h 45m",
         "price": "45"
-      },
-      {
-        "from": "Bhilwara",
-        "to": "Udaipur",
-        "duration": "3h",
-        "price": "70"
-      },
-      {
-        "from": "Kanore",
-        "to": "Nimbahera",
-        "duration": "45m",
-        "price": "25"
       }
     ]
   },
   "homeAbout": {
     "title": "About Our Company",
     "subtitle": "Trusted transport partner of Mewar since 2009",
-    "founderName": "Mr. Narendra Kumar Purbiya",
+    "founderName": "Mr. Narendra Kumar Purbiya Naresh Chaudhary",
     "founderRole": "Founder & Owner",
-    "p1": "Shree Mateshwari Enterprises has been proudly serving the people of Mewar region for over 15 years. Founded by Mr. Narendra Kumar Purbiya, our mission is simple — provide safe, affordable, and reliable bus services to every corner of Rajasthan's heartland.",
-    "p2": "We operate multiple daily routes connecting Udaipur, Chittorgarh, Bhilwara, Nimbahera, Neemuch, Barisadri, Kanore and surrounding areas. Our buses run on nominal prices so that every commuter — student, farmer, or professional — can travel with dignity.",
+    "p1": "Shree Mateshwari Enterprises has been proudly serving the people of Mewar region for over 15 years. Founded by Mr. Narendra Kumar Purbiya Naresh Chaudhary, our mission is simple — provide safe, affordable, and reliable bus services to every corner of Rajasthan's heartland.",
+    "p2": "We operate multiple daily routes connecting Fatehnagar, Barisadri, Salumbar, Bhilwara, Bhinder, Aawari Mata Ji, Udaipur, Mangalwar, Kanore and surrounding areas. Our buses run on nominal prices so that every commuter — student, farmer, or professional — can travel with dignity.",
     "pill1": "Nominal Fares",
     "pill2": "Safe & Reliable",
     "pill3": "Daily Service",
@@ -96,10 +96,10 @@
   "about": {
     "pageHeadline": "About Our Company",
     "pageSubheadline": "Trusted transport partner of Mewar since 2009",
-    "founderName": "Mr. Narendra Kumar Purbiya",
+    "founderName": "Mr. Narendra Kumar Purbiya Naresh Chaudhary",
     "founderRole": "Founder & Owner",
-    "p1": "Shree Mateshwari Enterprises has been proudly serving the people of Mewar region for over 15 years. Founded by Mr. Narendra Kumar Purbiya, our mission is simple — provide safe, affordable, and reliable bus services to every corner of Rajasthan's heartland.",
-    "p2": "We operate multiple daily routes connecting Udaipur, Chittorgarh, Bhilwara, Nimbahera, Neemuch, Barisadri, Kanore and surrounding areas. Our buses run on nominal prices so that every commuter — student, farmer, or professional — can travel with dignity.",
+    "p1": "Shree Mateshwari Enterprises has been proudly serving the people of Mewar region for over 15 years. Founded by Mr. Narendra Kumar Purbiya Naresh Chaudhary, our mission is simple — provide safe, affordable, and reliable bus services to every corner of Rajasthan's heartland.",
+    "p2": "We operate multiple daily routes connecting Fatehnagar, Barisadri, Salumbar, Bhilwara, Bhinder, Aawari Mata Ji, Udaipur, Mangalwar, Kanore and surrounding areas. Our buses run on nominal prices so that every commuter — student, farmer, or professional — can travel with dignity.",
     "pill1": "Nominal Prices",
     "pill2": "Safe & Reliable",
     "pill3": "Daily Service",
@@ -118,28 +118,44 @@
     "payByQrBtn": "Pay by QR & Get Cashback",
     "list": [
       {
-        "from": "Barisadri",
-        "to": "Udaipur",
-        "price": "80",
-        "duration": "3h 30m",
-        "distance": "~130 km",
-        "times": ["5:00 AM", "9:00 AM", "1:00 PM", "5:00 PM"]
-      },
-      {
-        "from": "Nimbahera",
-        "to": "Udaipur",
+        "from": "Fatehnagar",
+        "to": "Barisadri",
         "price": "60",
-        "duration": "2h 45m",
-        "distance": "~100 km",
-        "times": ["6:30 AM", "10:00 AM", "2:00 PM", "6:00 PM"]
+        "duration": "2h 15m",
+        "distance": "~80 km",
+        "times": ["6:00 AM", "10:00 AM", "2:00 PM", "5:30 PM"]
       },
       {
-        "from": "Neemuch",
-        "to": "Udaipur",
+        "from": "Salumbar",
+        "to": "Bhilwara",
+        "price": "120",
+        "duration": "4h 30m",
+        "distance": "~170 km",
+        "times": ["5:30 AM", "9:30 AM", "1:30 PM", "5:00 PM"]
+      },
+      {
+        "from": "Bhinder",
+        "to": "Bhilwara",
         "price": "90",
-        "duration": "4h",
-        "distance": "~160 km",
-        "times": ["5:30 AM", "8:00 AM", "12:00 PM", "4:00 PM"]
+        "duration": "3h 15m",
+        "distance": "~130 km",
+        "times": ["6:30 AM", "10:30 AM", "2:30 PM", "6:00 PM"]
+      },
+      {
+        "from": "Aawari Mata Ji",
+        "to": "Udaipur",
+        "price": "75",
+        "duration": "2h 30m",
+        "distance": "~95 km",
+        "times": ["7:00 AM", "11:00 AM", "3:00 PM", "6:30 PM"]
+      },
+      {
+        "from": "Mangalwar",
+        "to": "Kanore",
+        "price": "25",
+        "duration": "45m",
+        "distance": "~30 km",
+        "times": ["7:30 AM", "11:30 AM", "3:30 PM", "7:00 PM"]
       },
       {
         "from": "Chittorgarh",
@@ -148,22 +164,6 @@
         "duration": "1h 45m",
         "distance": "~70 km",
         "times": ["7:00 AM", "10:30 AM", "2:30 PM", "6:30 PM"]
-      },
-      {
-        "from": "Bhilwara",
-        "to": "Udaipur",
-        "price": "70",
-        "duration": "3h",
-        "distance": "~120 km",
-        "times": ["6:00 AM", "9:30 AM", "1:30 PM", "5:30 PM"]
-      },
-      {
-        "from": "Kanore",
-        "to": "Nimbahera",
-        "price": "25",
-        "duration": "45m",
-        "distance": "~30 km",
-        "times": ["7:30 AM", "11:00 AM", "3:00 PM", "7:00 PM"]
       }
     ]
   },
@@ -180,7 +180,7 @@
   },
   "footer": {
     "brandTagline": "Connecting Mewar, One Journey at a Time",
-    "ownerCredit": "Owned by Mr. Narendra Kumar Purbiya",
+    "ownerCredit": "Owned by Mr. Narendra Kumar Purbiya Naresh Chaudhary",
     "quickLinks": "Quick Links",
     "popularRoutes": "Popular Routes",
     "contactUs": "Contact Us",
@@ -195,11 +195,11 @@
   "meta": {
     "home": {
       "title": "Shree Mateshwari Enterprises — SME Buses | Connecting Mewar",
-      "description": "Affordable, reliable local bus services across the Mewar region of Rajasthan. Daily routes connecting Udaipur, Chittorgarh, Bhilwara, Nimbahera, Neemuch, Barisadri."
+      "description": "Affordable, reliable local bus services across the Mewar region of Rajasthan. Daily routes connecting Fatehnagar, Barisadri, Salumbar, Bhilwara, Bhinder, Aawari Mata Ji, Udaipur, Mangalwar, Kanore."
     },
     "routes": {
       "title": "Our Bus Routes & Schedules | Shree Mateshwari Enterprises",
-      "description": "Daily bus routes, departure timings, and ticket fares connecting Udaipur, Chittorgarh, Nimbahera, Neemuch, Bhilwara, Barisadri, Kanore."
+      "description": "Daily bus routes, departure timings, and ticket fares connecting Fatehnagar, Barisadri, Salumbar, Bhilwara, Bhinder, Aawari Mata Ji, Udaipur, Mangalwar, Kanore."
     },
     "qrPayment": {
       "title": "Pay by QR & Get Cashback | Shree Mateshwari Enterprises",
@@ -207,7 +207,7 @@
     },
     "about": {
       "title": "About Us | Shree Mateshwari Enterprises — SME Buses",
-      "description": "Trusted transport partner of Mewar since 2009. Founded by Mr. Narendra Kumar Purbiya, providing safe and reliable bus services."
+      "description": "Trusted transport partner of Mewar since 2009. Founded by Mr. Narendra Kumar Purbiya Naresh Chaudhary, providing safe and reliable bus services."
     },
     "refundPolicy": {
       "title": "Refund & Cancellation Policy | Shree Mateshwari Enterprises",

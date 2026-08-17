@@ -47,7 +47,7 @@ export default function FloatingActions() {
 
       {/* Floating WhatsApp Button */}
       <Link
-        href="https://wa.me/919636048785?text=Hello%20Shree%20Mateshwari%20Enterprises,%20I%20would%20like%20to%20inquire%20about%20bus%20routes%20and%20timings."
+        href="https://wa.me/919928261238?text=Hello%20Shree%20Mateshwari%20Enterprises,%20I%20would%20like%20to%20inquire%20about%20bus%20routes%20and%20timings."
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Chat on WhatsApp"
