@@ -74,6 +74,7 @@ if "updated_at" not in columns:
     print("updated_at column added")
 
 
+
 conn.commit()
 conn.close()
 

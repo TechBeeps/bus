@@ -332,7 +332,7 @@ def payment_success(payload: PaymentSuccessRequest):
         conn.close()
         return {"success": False}
 
-    payment_logs[payload.payment_id]["status"] = "PAID"
+    #payment_logs[payload.payment_id]["status"] = "PAID"
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -353,7 +353,7 @@ def payment_success(payload: PaymentSuccessRequest):
     conn.commit()
 
     cursor.execute("""
-    SELECT origin, destination, amount, bus_id
+    SELECT origin, destination, amount, bus_id, id AS ticket_id
     FROM payments
     WHERE payment_id=?
     """, (payload.payment_id,))
@@ -364,12 +364,25 @@ def payment_success(payload: PaymentSuccessRequest):
     destination = ticket[1]
     amount = ticket[2]
     bus_id = ticket[3]
+    ticket_id = ticket[4]
+
+    cursor.execute("""
+        SELECT token FROM push_token
+    """)
+
+    rows = cursor.fetchall()
+
+    
+    
+    expo_tokens = [row[0] for row in rows]
+
+    print("Push Tokens:", expo_tokens)
 
     # Push Notification
-    expo_token = "ExponentPushToken[fsvh3yPUuqi2Smlr5J__WO]"
+    #expo_token = "ExponentPushToken[fsvh3yPUuqi2Smlr5J__WO]"
 
     push_payload = {
-        "to": expo_token,
+        "to": expo_tokens,
         "title": "New Ticket Booked",
         "body": (
         f"Bus No: {bus_id}\n"
@@ -380,7 +393,7 @@ def payment_success(payload: PaymentSuccessRequest):
         "data": {
             "razorpay_payment_id": payload.payment_id,
             "bus_id": bus_id,
-            "ticket_id": payload.payment_id,
+            "ticket_id": ticket_id,
             "amount": amount,
             "origin": origin,
             "destination": destination
@@ -404,8 +417,8 @@ def payment_success(payload: PaymentSuccessRequest):
 
     
 
-    payment_logs[payload.payment_id]["razorpay_payment_id"] = payload.razorpay_payment_id
-    payment_logs[payload.payment_id]["paid_at"] = str(datetime.datetime.now())
+    #payment_logs[payload.payment_id]["razorpay_payment_id"] = payload.razorpay_payment_id
+    #payment_logs[payload.payment_id]["paid_at"] = str(datetime.datetime.now())
 
     return {"success": True}
 
