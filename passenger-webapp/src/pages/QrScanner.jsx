@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import QRCode from "react-qr-code";
-
+import config from "../config";
 
 export default function QrScanner() {
   const navigate = useNavigate();
@@ -49,7 +49,7 @@ export default function QrScanner() {
             <div className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 p-6">
               <div className="flex justify-center">
                 <QRCode
-                value="${config.API_URL}/bus/BUS001"
+                value={`${config.API_URL}/bus/BUS001`}
                 size={250}
                 />
               </div>
