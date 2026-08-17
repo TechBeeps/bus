@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "163201681171",
+    "project_id": "techbeeps-bus-booking",
+    "storage_bucket": "techbeeps-bus-booking.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:163201681171:android:ae15538aaaceea61317ce6",
+        "android_client_info": {
+          "package_name": "com.techbeeps.conductormobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD6ivW1jpFLuC21YRuweLedgupG7RQtpZ8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

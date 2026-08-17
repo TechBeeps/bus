@@ -1,22 +1,16 @@
-// src/services/AudioService.js
-import Sound from 'react-native-sound';
+import { createAudioPlayer } from 'expo-audio';
 
-// Enable playback in silence mode
-Sound.setCategory('Playback');
+const successChime = require('../assets/success_chime.ogg');
 
-const successChime = require('../assets/success_chime.mp3');
-
-export const playVerificationChime = () => {
-  const chime = new Sound(successChime, (error) => {
-    if (error) {
-      console.log('Failed to load the sound', error);
-      return;
-    }
-    chime.play((success) => {
-      if (!success) {
-        console.log('Playback failed due to audio decoding errors');
-      }
-      chime.release();
-    });
-  });
+export const playVerificationChime = async () => {
+  try {
+    const player = createAudioPlayer(successChime);
+    player.seekTo(0);
+    player.play();
+    setTimeout(() => {
+      player.release();
+    }, 3000);
+  } catch (error) {
+    console.log('Failed to play verification chime', error);
+  }
 };

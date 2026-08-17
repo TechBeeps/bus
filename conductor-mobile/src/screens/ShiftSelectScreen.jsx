@@ -1,12 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
-
-const BUSSES = ['BUS_101', 'BUS_102', 'BUS_103', 'BUS_104'];
+import * as Notifications from 'expo-notifications';
+const BUSSES = ['BUS001', 'BUS002', 'BUS003'];
 
 export default function ShiftSelectScreen({ navigation }) {
   const [conductorName, setConductorName] = useState('');
   const [selectedBus, setSelectedBus] = useState(BUSSES[0]);
+  const [pushToken, setPushToken] = useState(null);
 
+useEffect(() => {
+    const setup = async () => {
+
+       const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: '4016f9fc-6631-4114-bfcd-bf8ef9a0c31d',
+      });
+      setConductorName(tokenData.data);
+      setPushToken(tokenData.data);
+      console.log('Push token1:', tokenData.data);
+    }
+      setup();
+  }, []);
+  
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.container}>
@@ -15,6 +29,7 @@ export default function ShiftSelectScreen({ navigation }) {
 
         <View style={styles.card}>
           <Text style={styles.label}>Conductor Name</Text>
+          
           <TextInput
             style={styles.input}
             placeholder="Enter your name"

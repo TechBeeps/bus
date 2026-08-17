@@ -10,6 +10,9 @@ import {
   StatusBar,
 } from 'react-native';
 import { playVerificationChime } from '../services/AudioService';
+import * as Notifications from 'expo-notifications';
+import { AppState } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_BASE_URL = 'http://10.0.2.2:8000/api/v1'; // Localhost for Android Emulator
 
@@ -23,30 +26,101 @@ export default function LiveVerificationScreen({ route, navigation }) {
   const [isOnline, setIsOnline] = useState(true);
 
   const knownTicketIds = useRef(new Set());
+  const firstLoadRef = useRef(true);
+  const appState = useRef(AppState.currentState);
 
   useEffect(() => {
+    const appStateListener = (nextAppState) => {
+      appState.current = nextAppState;
+    };
+    const sub = AppState.addEventListener('change', appStateListener);
+    const STORAGE_KEY = `@knownTicketIds_${busId}`;
+
+    const loadKnownIds = async () => {
+      try {
+        const json = await AsyncStorage.getItem(STORAGE_KEY);
+        if (json) {
+          const ids = JSON.parse(json);
+          knownTicketIds.current = new Set(Array.isArray(ids) ? ids : []);
+        }
+      } catch (e) {
+        // ignore load errors
+      }
+    };
+
+    const saveKnownIds = async () => {
+      try {
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(knownTicketIds.current)));
+      } catch (e) {
+        // ignore save errors
+      }
+    };
+
     const fetchUpdates = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/conductor/bus/${busId}/updates`);
-        if (response.ok) {
-          const data = await response.json();
-          setIsOnline(true);
-          processIncomingTickets(data.verified_tickets || []);
+        let tickets = [];
+        try {
+          const res = await fetch(`https://api.techbeeps.co.in/api/v1/tickets/${busId}`);
+       
+          if (res && res.status === 200) {
+          
+            const data = await res.json();
+
+            tickets = data.data || [];
+            setIsOnline(true);
+          } else {
+    
+            tickets = [];
+            setIsOnline(false);
+          }
+        } catch (err) {
+
+          tickets = [];
+          setIsOnline(false);
         }
+
+        await processIncomingTickets(tickets, saveKnownIds);
+
+        if (firstLoadRef.current) firstLoadRef.current = false;
       } catch (error) {
         setIsOnline(false);
       }
     };
 
-    const interval = setInterval(fetchUpdates, 2000);
-    fetchUpdates();
+    const init = async () => {
+      await loadKnownIds();
+      await fetchUpdates();
+      const interval = setInterval(fetchUpdates, 2000);
+      // store interval id on ref so it can be cleared
+      return () => clearInterval(interval);
+    };
 
-    return () => clearInterval(interval);
+    let cleanup;
+    (async () => {
+      cleanup = await init();
+    })();
+
+    return () => {
+      if (cleanup) cleanup();
+      if (sub) sub.remove();
+    };
   }, [busId]);
 
-  const processIncomingTickets = (tickets) => {
-    let newTicketsFound = false;
+  const processIncomingTickets = async (tickets, persistFn) => {
     let sum = 0;
+
+    if (firstLoadRef.current) {
+      tickets.forEach((ticket) => {
+        sum += ticket.amount;
+        knownTicketIds.current.add(ticket.ticket_id);
+      });
+      setVerifiedTickets([...tickets].reverse());
+      setTotalCollection(sum);
+      if (persistFn) await persistFn();
+      return;
+    }
+
+    let newTicketsFound = false;
 
     tickets.forEach((ticket) => {
       sum += ticket.amount;
@@ -60,6 +134,7 @@ export default function LiveVerificationScreen({ route, navigation }) {
     if (newTicketsFound) {
       setVerifiedTickets([...tickets].reverse());
       setTotalCollection(sum);
+      if (persistFn) await persistFn();
     }
   };
 
@@ -69,10 +144,24 @@ export default function LiveVerificationScreen({ route, navigation }) {
 
     playVerificationChime();
     Vibration.vibrate([0, 500, 200, 500]);
+    // Do not auto-dismiss the overlay; allow user to tap to dismiss.
 
-    setTimeout(() => {
-      setShowAlertOverlay(false);
-    }, 4000);
+    // If app is backgrounded or inactive, also send a local notification so
+    // tapping it will open the Notification screen.
+    if (appState.current !== 'active') {
+      try {
+        Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'Payment received',
+            body: `₹${ticket.amount} - ${ticket.ticket_id}`,
+            data: { ticket },
+          },
+          trigger: null,
+        });
+      } catch (e) {
+        // ignore notification errors
+      }
+    }
   };
 
   return (
@@ -116,7 +205,7 @@ export default function LiveVerificationScreen({ route, navigation }) {
 
               <View style={styles.cardFooter}>
                 <Text style={styles.amountText}>₹{item.amount}</Text>
-                <Text style={styles.timeText}>{item.created_at ? item.created_at.split('T')[1].substring(0, 5) : 'Just Now'}</Text>
+                {/* <Text style={styles.timeText}>{item.created_at ? item.created_at.split('T')[1].substring(0, 5) : 'Just Now'}</Text> */}
               </View>
             </View>
           )}
