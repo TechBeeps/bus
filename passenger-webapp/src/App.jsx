@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import axios from 'axios';
 import './App.css';
+
+
 import {
   QrCode,
   Ticket as TicketIcon,

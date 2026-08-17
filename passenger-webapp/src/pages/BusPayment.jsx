@@ -11,6 +11,7 @@ export default function BusPayment() {
   const [mobile, setMobile] = useState("");
 //const [passengerName, setPassengerName] = useState("");
 
+
 const handlePay = async () => {
   try {
 
@@ -97,6 +98,35 @@ const handlePay = async () => {
   }
 };
 
+const buses = [
+  {
+    id: "BUS001",
+    busNo: "RJ14PA1234",
+    origin: "Bari Sadri",
+    destination: "Udaipur",
+  },
+  {
+    id: "BUS002",
+    busNo: "RJ14PA5678",
+    origin: "Nimbahera",
+    destination: "Udaipur",
+  },
+  {
+    id: "BUS003",
+    busNo: "RJ14PA1212",
+    origin: "Neemuch",
+    destination: "Udaipur",
+  },
+];
+
+const currentBus =
+  buses.find((bus) => bus.id === busId) || {
+    busNo: "N/A",
+    origin: "",
+    destination: "",
+  };
+
+
   return (
     <div className="min-h-screen bg-slate-50">
 
@@ -132,15 +162,19 @@ const handlePay = async () => {
             </div>
 
             <div className="mb-2">
-              <strong>Bus No:</strong> RJ14PA1234
+              <strong>Bus No:</strong> {currentBus.busNo}
+            </div>
+
+            <div className="mb-2">
+              <strong>Origin:</strong> {currentBus.origin}
             </div>
 
             <div>
-              <strong>Route:</strong> Jhotwara → Chandpole → Badi Chaupar
+              <strong>Destination:</strong> {currentBus.destination}
             </div>
 
           </div>
-             {/* <div className="mb-4">
+            {/* <div className="mb-4">
             <label className="mb-2 block font-medium">
             Passenger Name
             </label>
@@ -181,6 +215,8 @@ const handlePay = async () => {
               onChange={(e) => setMobile(e.target.value)}
             />
           </div>
+
+          
 
           <button
             onClick={handlePay}

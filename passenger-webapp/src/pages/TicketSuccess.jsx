@@ -223,7 +223,7 @@ export default function TicketPage() {
       onClick={downloadPDF}
       className="w-full rounded-xl bg-green-600 py-3 text-white font-semibold"
     >
-      Download PDF Ticket
+      Download Ticket
     </button>
   </div>
 )}

@@ -7,7 +7,7 @@ import uvicorn
 import datetime
 import razorpay
 from app.database import get_connection
-
+import requests
 
 payment_logs = {}
 
@@ -216,6 +216,23 @@ def notify_conductor(bus_id: str, ticket: dict):
 def get_payments():
     return payment_logs
 
+BUS_ROUTES = {
+    "BUS001": {
+        "bus_no": "RJ14PA1234",
+        "origin": "Bari Sadri",
+        "destination": "Udaipur"
+    },
+    "BUS002": {
+        "bus_no": "RJ14PA5678",
+        "origin": "Nimbahera",
+        "destination": "Udaipur"
+    },
+    "BUS003": {
+        "bus_no": "RJ14PA1212",
+        "origin": "Neemuch",
+        "destination": "Udaipur"
+    }
+}
 
 @app.post("/api/v1/payment/order")
 def create_order(payload: CreatePaymentRequest):
@@ -230,6 +247,12 @@ def create_order(payload: CreatePaymentRequest):
         "receipt": payment_id
     })
 
+    route = BUS_ROUTES.get(payload.bus_id, {})
+
+    bus_no = route.get("bus_no", "")
+    origin = route.get("origin", "")
+    destination = route.get("destination", "")  
+
     payment_logs[payment_id] = {
         "payment_id": payment_id,
         "bus_id": payload.bus_id,
@@ -237,7 +260,10 @@ def create_order(payload: CreatePaymentRequest):
         "cashback": cashback,
         "status": "INITIATED",
         "razorpay_order_id": order["id"],
-        "created_at": str(datetime.datetime.now())
+        "created_at": str(datetime.datetime.now()),
+        "bus_no": bus_no,
+        "origin": origin,
+        "destination": destination
     }
 
     conn = get_connection()
@@ -252,9 +278,12 @@ def create_order(payload: CreatePaymentRequest):
         status,
         razorpay_order_id,
         created_at,
-        phone_number
+        phone_number,
+        origin,
+        destination,
+        passenger_count
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?,?, ?, ?)
     """, (
         payment_id,
         payload.bus_id,
@@ -263,7 +292,10 @@ def create_order(payload: CreatePaymentRequest):
         "INITIATED",
         order["id"],
         str(datetime.datetime.now()),
-        payload.mobile
+        payload.mobile,
+        origin,
+        destination,
+        1  # Default passenger_count to 1
     ))
 
     conn.commit()
@@ -316,7 +348,49 @@ def payment_success(payload: PaymentSuccessRequest):
     ))
 
     conn.commit()
+
+    cursor.execute("""
+    SELECT origin, destination, amount
+    FROM payments
+    WHERE payment_id=?
+    """, (payload.payment_id,))
+
+    ticket = cursor.fetchone()
+
+    origin = ticket[0]
+    destination = ticket[1]
+    amount = ticket[2]
+
+    # Push Notification
+    expo_token = "ExponentPushToken[fsvh3yPUuqi2Smlr5J__WO]"
+
+    push_payload = {
+        "to": expo_token,
+        "title": "New Ticket Booked",
+        "body": f"{origin} → {destination} | ₹{amount}",
+        "data": {
+            "screen": "Notification",
+            "payment_id": payload.payment_id
+        }
+    }
+
+    try:
+        requests.post(
+            "https://exp.host/--/api/v2/push/send",
+            json=push_payload,
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json"
+            }
+        )
+    except Exception as e:
+        print("Push Error:", e)
+
+
     conn.close()
+
+    
+
     payment_logs[payload.payment_id]["razorpay_payment_id"] = payload.razorpay_payment_id
     payment_logs[payload.payment_id]["paid_at"] = str(datetime.datetime.now())
 
@@ -387,8 +461,8 @@ def get_payment(payment_id: str):
 
 
 
-@app.get("/api/v1/db-payments")
-def db_payments():
+@app.get("/api/v1/tickets")
+def tickets():
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -402,7 +476,32 @@ def db_payments():
     return [dict(row) for row in rows]
 
 
+@app.get("/api/v1/tickets/{bus_id}")
+def ticketsByid(bus_id: str):
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
 
+        cursor.execute("SELECT id as ticket_id, amount, origin, destination, passenger_count, razorpay_payment_id, created_at FROM payments WHERE bus_id = ?", (bus_id,))
+
+        rows = cursor.fetchall()
+
+        conn.close()
+
+        #these data fetch form row 
+        # { ticket_id: 'TKT009', amount: 150, origin: 'Delhi', destination: 'Jaipur', passenger_count: 2, created_at: '2026-08-17T12:10:00', upi_txn_id: 'UPI123' },
+
+        data = [dict(row) for row in rows]
+
+        return {
+            "success": True, 
+            "data": data
+        }
+
+    except ValueError:
+        return {"success": False, "message": "Invalid bus_id"}
+
+    
 
 
 

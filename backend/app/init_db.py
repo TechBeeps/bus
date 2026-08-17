@@ -25,12 +25,23 @@ CREATE TABLE IF NOT EXISTS payments (
 cursor.execute("PRAGMA table_info(payments)")
 columns = [col[1] for col in cursor.fetchall()]
 
-if "phone_number" not in columns:
+if "origin" not in columns:
     cursor.execute("""
     ALTER TABLE payments
-    ADD COLUMN phone_number TEXT
+    ADD COLUMN origin TEXT
     """)
-    print("phone_number column added")
+if "destination" not in columns:
+    cursor.execute("""
+    ALTER TABLE payments
+    ADD COLUMN destination TEXT
+    """)
+if "passenger_count" not in columns:
+    cursor.execute("""
+    ALTER TABLE payments
+    ADD COLUMN passenger_count INTEGER
+    """)
+
+   # print("passenger_count column added")
 
 conn.commit()
 conn.close()
