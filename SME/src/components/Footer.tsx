@@ -116,11 +116,15 @@ export default function Footer() {
         <div className="pt-8 text-center space-y-2 text-[11px] sm:text-xs text-gray-500">
           <div className="flex flex-wrap items-center justify-center gap-3">
             <span className="hover:text-gray-300 transition cursor-pointer">
+            <Link href="/privacy-policy" className="hover:text-gray-300 transition cursor-pointer">
               {t("privacyPolicy")}
+            </Link>
             </span>
             <span>|</span>
             <span className="hover:text-gray-300 transition cursor-pointer">
+              <Link href="/terms-and-conditions" className="hover:text-gray-300 transition cursor-pointer">
               {t("termsConditions")}
+              </Link>
             </span>
             <span>|</span>
             <Link href="/refund-policy" className="hover:text-gray-300 transition cursor-pointer">

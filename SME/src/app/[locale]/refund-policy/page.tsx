@@ -336,7 +336,7 @@ export default async function RefundPolicyPage({
                 <p>Website: <Link href="https://shreemate.in" className="text-[#E8721A] hover:underline">https://shreemate.in</Link></p>
               </div>
             </div>           
-            <div className="pt-8 border-t border-amber-100 flex items-center justify-center gap-4 text-xs text-gray-500 font-medium">
+            {/* <div className="pt-8 border-t border-amber-100 flex items-center justify-center gap-4 text-xs text-gray-500 font-medium">
               <span className="hover:text-gray-700 transition cursor-pointer">
                 {isHindi ? "गोपनीयता नीति" : "Privacy Policy"}
               </span>
@@ -344,7 +344,7 @@ export default async function RefundPolicyPage({
               <span className="hover:text-gray-700 transition cursor-pointer">
                 {isHindi ? "नियम एवं शर्तें" : "Terms & Conditions"}
               </span>
-            </div>
+            </div> */}
           </div>
         </div>
       </section>
