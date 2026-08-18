@@ -165,6 +165,7 @@ export default function TicketPage() {
         <span className="text-slate-500">Amount</span>
         <span>₹{payment.amount}</span>
       </div>
+      
        <div className="flex justify-between">
         <span className="text-slate-500">Mobile</span>
         <span>{payment.phone_number}</span>

@@ -41,6 +41,36 @@ CREATE TABLE IF NOT EXISTS user (
 )
 """)
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS monthly_passes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pass_id TEXT UNIQUE,
+    bus_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    mobile TEXT NOT NULL,
+    pin TEXT NOT NULL,
+    amount REAL DEFAULT 1000,
+    total_rides INTEGER DEFAULT 62,
+    used_rides INTEGER DEFAULT 0,
+    remaining_rides INTEGER DEFAULT 62,
+    status TEXT DEFAULT 'ACTIVE',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS pass_usage (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pass_id INTEGER NOT NULL,
+    bus_id TEXT NOT NULL,
+    used_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)
+""")
+cursor.execute("""
+CREATE UNIQUE INDEX IF NOT EXISTS idx_monthly_pass_mobile
+ON monthly_passes(mobile)
+""")
+
 
 
 # Check if phone_number column exists

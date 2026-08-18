@@ -11,10 +11,13 @@ export default function BusPayment() {
   const [mobile, setMobile] = useState("");
 //const [passengerName, setPassengerName] = useState("");
 
+const [tab, setTab] = useState("one-time");
+const [pin, setPin] = useState("");
 
+//handle one-time payment
 const handlePay = async () => {
   try {
-
+    
     const response = await axios.post(
       `${config.API_URL}/payment/order`,
       {
@@ -98,6 +101,41 @@ const handlePay = async () => {
   }
 };
 
+//handle monthly pass usage
+const handleMonthlyPass = async () => {
+  try {
+
+    const response = await axios.post(
+      `${config.API_URL}/monthly-pass/use`,
+      {
+        bus_id: busId,
+        mobile,
+        pin
+      }
+    );
+
+    const data = response.data;
+
+    if (data.success) {
+
+      // alert(
+      //   `Ride Booked Successfully\nRemaining Rides: ${data.remaining_rides}`
+      // );
+      navigate(`/ticket/${data.payment_id}`);
+      
+
+    } else {
+
+      alert(data.message);
+
+    }
+
+  } catch (error) {
+    console.error(error);
+    alert("Unable to verify monthly pass");
+  }
+};
+
 const buses = [
   {
     id: "BUS001",
@@ -174,56 +212,109 @@ const currentBus =
             </div>
 
           </div>
-            {/* <div className="mb-4">
-            <label className="mb-2 block font-medium">
-            Passenger Name
-            </label>
 
-            <input
-            type="text"
-            className="w-full rounded-xl border p-3"
-            placeholder="Enter Passenger Name"
-            value={passengerName}
-            onChange={(e) => setPassengerName(e.target.value)}
-            />
-            </div> */}
+          <div className="mb-5 flex rounded-2xl bg-slate-100 p-1">
+            <button
+              onClick={() => setTab("one-time")}
+              className={`flex-1 rounded-xl py-3 ${
+                tab === "one-time"
+                  ? "bg-indigo-600 text-white"
+                  : ""
+              }`}
+            >
+              One Time
+            </button>
 
-          <div className="mb-4">
-            <label className="mb-2 block font-medium">
-              Amount
-            </label>
-           
-            <input
-              type="number"
-              className="w-full rounded-xl border p-3"
-              placeholder="Enter Amount"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
+            <button
+              onClick={() => setTab("monthly")}
+              className={`flex-1 rounded-xl py-3 ${
+                tab === "monthly"
+                  ? "bg-green-600 text-white"
+                  : ""
+              }`}
+            >
+              Monthly Pass
+            </button>
           </div>
 
-          <div className="mb-5">
-            <label className="mb-2 block font-medium">
-              Mobile Number
-            </label>
+        {tab === "one-time" && (
+          <>
+            <div className="mb-4">
+              <label className="mb-2 block font-medium">
+                Amount
+              </label>
+            
+              <input
+                type="number"
+                className="w-full rounded-xl border p-3"
+                placeholder="Enter Amount"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </div>
 
-            <input
-              type="text"
-              className="w-full rounded-xl border p-3"
-              placeholder="Enter Mobile Number"
-              value={mobile}
-              onChange={(e) => setMobile(e.target.value)}
-            />
-          </div>
+            <div className="mb-5">
+              <label className="mb-2 block font-medium">
+                Mobile Number
+              </label>
 
-          
+              <input
+                type="text"
+                className="w-full rounded-xl border p-3"
+                placeholder="Enter Mobile Number"
+                value={mobile}
+                onChange={(e) => setMobile(e.target.value)}
+              />
+            </div>
 
-          <button
-            onClick={handlePay}
-            className="w-full rounded-3xl bg-indigo-600 px-6 py-3.5 text-sm font-semibold text-white"
-          >
-            Pay Now
-          </button>
+            
+
+            <button
+              onClick={handlePay}
+              className="w-full rounded-3xl bg-indigo-600 px-6 py-3.5 text-sm font-semibold text-white"
+            >
+              Pay Now
+            </button>
+
+          </>
+      )}
+
+      {tab === "monthly" && (
+          <>
+            <div className="mb-4">
+              <label>Mobile Number</label>
+              <input
+                type="text"
+                className="w-full rounded-xl border p-3"
+                value={mobile}
+                onChange={(e) => setMobile(e.target.value)}
+              />
+            </div>
+
+            <div className="mb-4">
+              <label>PIN</label>
+              <input
+                type="password"
+                className="w-full rounded-xl border p-3"
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+              />
+            </div>
+
+            <button onClick={handleMonthlyPass}
+              className="w-full rounded-3xl bg-green-600 py-3 text-white"
+            >
+              Use Monthly Pass
+            </button>
+
+            <button
+              onClick={() => navigate(`/monthly-plan/${busId}`)}
+              className="mt-3 w-full rounded-3xl border border-green-600 py-3"
+            >
+              Purchase Monthly Pass
+            </button>
+          </>
+          )}
 
         </section>
 
