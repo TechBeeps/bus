@@ -226,7 +226,7 @@ export default async function RefundPolicyPage({
               <ul className="list-disc pl-5 space-y-1.5 text-gray-600">
                 <li>{isHindi ? "रिफंड उसी मूल UPI ID या बैंक खाते में भेजा जाएगा जिससे भुगतान किया गया था।" : "Refunds will be processed to the original UPI ID or bank account used for payment."}</li>
                 <li>{isHindi ? "रिफंड प्रोसेसिंग समय 5-7 कार्य दिवस है, जो आपके बैंक के नियमों के अधीन है।" : "Refund processing time is 5–7 working days, subject to your bank's processing schedule."}</li>
-                <li>{isHindi ? "यदि आपके खाते से पैसे कट गए हैं लेकिन बुकिंग की पुष्टि नहीं हुई है, तो कृपया अपने ट्रांजेक्शन रेफरेंस नंबर के साथ तुरंत info@shreemateshwaribus.com पर संपर्क करें। हम 24 घंटों में समाधान करेंगे।" : "In cases where a payment is deducted but a booking confirmation is not received, please contact us immediately at info@shreemateshwaribus.com with your transaction reference number. We will investigate and resolve such cases within 24 hours."}</li>
+                <li>{isHindi ? "यदि आपके खाते से पैसे कट गए हैं लेकिन बुकिंग की पुष्टि नहीं हुई है, तो कृपया अपने ट्रांजेक्शन रेफरेंस नंबर के साथ तुरंत naresh12881288@gmail.com पर संपर्क करें। हम 24 घंटों में समाधान करेंगे।" : "In cases where a payment is deducted but a booking confirmation is not received, please contact us immediately at naresh12881288@gmail.com with your transaction reference number. We will investigate and resolve such cases within 24 hours."}</li>
                 <li>{isHindi ? "यात्रा रद्द होने पर अर्जित कैशबैक रिवार्ड्स (यदि कोई हो) स्वतः अमान्य हो जाएंगे।" : "Cashback rewards earned (if applicable) will be forfeited upon cancellation of the associated journey."}</li>
               </ul>
             </div>            
@@ -256,7 +256,7 @@ export default async function RefundPolicyPage({
                   : "To cancel a booking or request a refund, please contact us through the following channels:"}
               </p>
               <ul className="list-disc pl-5 space-y-1 text-gray-600">
-                <li>{isHindi ? "ईमेल: info@shreemateshwaribus.com" : "Email: info@shreemateshwaribus.com"}</li>
+                <li>{isHindi ? "ईमेल: naresh12881288@gmail.com" : "Email: naresh12881288@gmail.com"}</li>
                 <li>{isHindi ? "हेल्पलाइन: +91 99282 61238" : "Helpline: +91 99282 61238"}</li>
               </ul>
               <p className="pt-1">
@@ -301,8 +301,8 @@ export default async function RefundPolicyPage({
               </h3>
               <p>
                 {isHindi
-                  ? "रद्दीकरण या रिफंड के संबंध में किसी भी विवाद की स्थिति में, कृपया info@shreemateshwaribus.com पर संपर्क करें। हम 7 कार्य दिवसों के भीतर सौहार्दपूर्ण समाधान निकालने का पूरा प्रयास करेंगे।"
-                  : "In case of any dispute regarding a cancellation or refund, please contact us at info@shreemateshwaribus.com. We will make every effort to resolve disputes amicably within 7 working days."}
+                  ? "रद्दीकरण या रिफंड के संबंध में किसी भी विवाद की स्थिति में, कृपया naresh12881288@gmail.com पर संपर्क करें। हम 7 कार्य दिवसों के भीतर सौहार्दपूर्ण समाधान निकालने का पूरा प्रयास करेंगे।"
+                  : "In case of any dispute regarding a cancellation or refund, please contact us at naresh12881288@gmail.com. We will make every effort to resolve disputes amicably within 7 working days."}
               </p>
               <p>
                 {isHindi
@@ -332,7 +332,7 @@ export default async function RefundPolicyPage({
               <div className="pt-2 text-xs sm:text-sm text-gray-700 space-y-1">
                 <p className="font-bold text-[#111827]">Shree Mateshwari Enterprises</p>
                 <p>Mewar Region, Rajasthan, India</p>
-                <p>Email: <Link href="mailto:info@shreemateshwaribus.com" className="text-[#E8721A] hover:underline">info@shreemateshwaribus.com</Link></p>
+                <p>Email: <Link href="mailto:naresh12881288@gmail.com" className="text-[#E8721A] hover:underline">naresh12881288@gmail.com</Link></p>
                 <p>Website: <Link href="https://shreemateshwaribus.com/" className="text-[#E8721A] hover:underline">https://shreemateshwaribus.com/</Link></p>
               </div>
             </div>           

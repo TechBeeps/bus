@@ -303,10 +303,10 @@ export default async function TermsConditionsPage({
                 <p>
                   Email:{" "}
                   <Link
-                    href="mailto:info@shreemateshwaribus.com"
+                    href="mailto:naresh12881288@gmail.com"
                     className="text-[#E8721A]"
                   >
-                    info@shreemateshwaribus.com
+                    naresh12881288@gmail.com
                   </Link>
                 </p>
 

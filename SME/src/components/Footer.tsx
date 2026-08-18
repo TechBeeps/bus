@@ -105,7 +105,7 @@ export default function Footer() {
               </li>
               <li className="flex items-center gap-2.5">
                 <Mail className="w-4 h-4 text-[#E8721A] shrink-0" />
-                <Link href="mailto:info@shreemateshwaribus.com" className="hover:text-white transition">
+                <Link href="mailto:naresh12881288@gmail.com" className="hover:text-white transition">
                   {t("emailVal")}
                 </Link>
               </li>

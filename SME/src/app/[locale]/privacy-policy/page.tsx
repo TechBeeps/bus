@@ -315,10 +315,10 @@ export default async function PrivacyPolicyPage({
                 <p>
                   Email:{" "}
                   <Link
-                    href="mailto:info@shreemateshwaribus.com"
+                    href="mailto:naresh12881288@gmail.com"
                     className="text-[#E8721A] hover:underline"
                   >
-                    info@shreemateshwaribus.com
+                    naresh12881288@gmail.com
                   </Link>
                 </p>
 
