@@ -23,7 +23,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://shreemate.in"),
+  metadataBase: new URL("https://shreemateshwaribus.com/"),
   title: {
     default: "SME Buses — Shree Mateshwari Enterprises | Bus Rental Jaipur",
     template: "%s | SME Buses",
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     "Corporate Employee Transportation",
     "श्री मातेश्वरी बस",
   ],
-  authors: [{ name: "Shree Mateshwari Enterprises", url: "https://shreemate.in" }],
+  authors: [{ name: "Shree Mateshwari Enterprises", url: "https://shreemateshwaribus.com/" }],
   creator: "Shree Mateshwari Enterprises",
   publisher: "Shree Mateshwari Enterprises",
   formatDetection: {

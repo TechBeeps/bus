@@ -13,7 +13,7 @@ export async function generateMetadata({
 
   const title = t("title");
   const description = t("description");
-  const url = `https://shreemate.in/${locale}/routes`;
+  const url = `https://shreemateshwaribus.com//${locale}/routes`;
 
   return {
     title,
@@ -21,8 +21,8 @@ export async function generateMetadata({
     alternates: {
       canonical: url,
       languages: {
-        en: "https://shreemate.in/en/routes",
-        hi: "https://shreemate.in/hi/routes",
+        en: "https://shreemateshwaribus.com//en/routes",
+        hi: "https://shreemateshwaribus.com//hi/routes",
       },
     },
     openGraph: {
@@ -68,11 +68,11 @@ export default async function RoutesPage({
         items={[
           {
             name: isHindi ? "होम" : "Home",
-            url: `https://shreemate.in/${locale}`,
+            url: `https://shreemateshwaribus.com//${locale}`,
           },
           {
             name: isHindi ? "रूट्स" : "Routes",
-            url: `https://shreemate.in/${locale}/routes`,
+            url: `https://shreemateshwaribus.com//${locale}/routes`,
           },
         ]}
       />

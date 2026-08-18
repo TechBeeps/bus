@@ -7,7 +7,7 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/api/"],
     },
-    sitemap: "https://shreemate.in/sitemap.xml",
-    host: "https://shreemate.in",
+    sitemap: "https://shreemateshwaribus.com//sitemap.xml",
+    host: "https://shreemateshwaribus.com/",
   };
 }

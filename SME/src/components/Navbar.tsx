@@ -144,7 +144,7 @@ export default function Navbar() {
               className="flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-[#2B2B2B] bg-[#EDE5D8] rounded-xl hover:bg-[#E5DCce] transition"
             >
               <Phone className="w-4 h-4 text-[#E8721A]" />
-              <span>+91 96360 48785</span>
+              <span>+91 99282 61238</span>
             </Link>
           </div>
         </div>

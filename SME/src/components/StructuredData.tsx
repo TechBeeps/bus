@@ -7,8 +7,8 @@ export function BusinessSchema({ locale }: { locale: string }) {
         ? "श्री मातेश्वरी एंटरप्राइजेज — SME Buses"
         : "Shree Mateshwari Enterprises — SME Buses",
     alternateName: "SME Buses",
-    url: "https://shreemate.in",
-    logo: "https://shreemate.in/logo.png",
+    url: "https://shreemateshwaribus.com/",
+    logo: "https://shreemateshwaribus.com//logo.png",
     image:
       "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?q=80&w=1200&auto=format&fit=crop",
     description:

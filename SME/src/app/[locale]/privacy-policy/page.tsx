@@ -332,7 +332,7 @@ export default async function PrivacyPolicyPage({
                   </Link>
                 </p>
 
-                <p>Phone: +91 96360 48785</p>
+                <p>Phone: +91 99282 61238</p>
               </div>
             </div>
 

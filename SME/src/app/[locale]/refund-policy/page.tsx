@@ -14,7 +14,7 @@ export async function generateMetadata({
 
   const title = t("title");
   const description = t("description");
-  const url = `https://shreemate.in/${locale}/refund-policy`;
+  const url = `https://shreemateshwaribus.com//${locale}/refund-policy`;
 
   return {
     title,
@@ -22,8 +22,8 @@ export async function generateMetadata({
     alternates: {
       canonical: url,
       languages: {
-        en: "https://shreemate.in/en/refund-policy",
-        hi: "https://shreemate.in/hi/refund-policy",
+        en: "https://shreemateshwaribus.com//en/refund-policy",
+        hi: "https://shreemateshwaribus.com//hi/refund-policy",
       },
     },
     openGraph: {
@@ -53,11 +53,11 @@ export default async function RefundPolicyPage({
         items={[
           {
             name: isHindi ? "होम" : "Home",
-            url: `https://shreemate.in/${locale}`,
+            url: `https://shreemateshwaribus.com//${locale}`,
           },
           {
             name: isHindi ? "रिफंड एवं रद्दीकरण नीति" : "Refund & Cancellation Policy",
-            url: `https://shreemate.in/${locale}/refund-policy`,
+            url: `https://shreemateshwaribus.com//${locale}/refund-policy`,
           },
         ]}
       />
@@ -257,7 +257,7 @@ export default async function RefundPolicyPage({
               </p>
               <ul className="list-disc pl-5 space-y-1 text-gray-600">
                 <li>{isHindi ? "ईमेल: info@shreemateshwaribus.com" : "Email: info@shreemateshwaribus.com"}</li>
-                <li>{isHindi ? "हेल्पलाइन: +91 96360 48785" : "Helpline: +91 96360 48785"}</li>
+                <li>{isHindi ? "हेल्पलाइन: +91 99282 61238" : "Helpline: +91 99282 61238"}</li>
               </ul>
               <p className="pt-1">
                 {isHindi
@@ -333,7 +333,7 @@ export default async function RefundPolicyPage({
                 <p className="font-bold text-[#111827]">Shree Mateshwari Enterprises</p>
                 <p>Mewar Region, Rajasthan, India</p>
                 <p>Email: <Link href="mailto:info@shreemateshwaribus.com" className="text-[#E8721A] hover:underline">info@shreemateshwaribus.com</Link></p>
-                <p>Website: <Link href="https://shreemate.in" className="text-[#E8721A] hover:underline">https://shreemate.in</Link></p>
+                <p>Website: <Link href="https://shreemateshwaribus.com/" className="text-[#E8721A] hover:underline">https://shreemateshwaribus.com/</Link></p>
               </div>
             </div>           
             {/* <div className="pt-8 border-t border-amber-100 flex items-center justify-center gap-4 text-xs text-gray-500 font-medium">

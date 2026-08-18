@@ -93,7 +93,7 @@ export default function AboutView() {
                   </div>
                   <div className="flex items-center gap-2.5">
                     <Mail className="w-4 h-4 text-[#E8721A] shrink-0" />
-                    <Link href="mailto:info@shreemateshwari.in" className="hover:text-[#E8721A] transition">
+                    <Link href="mailto:naresh12881288@gmail.com" className="hover:text-[#E8721A] transition">
                       {t("emailVal")}
                     </Link>
                   </div>

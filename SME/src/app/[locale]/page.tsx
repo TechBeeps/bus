@@ -18,7 +18,7 @@ export async function generateMetadata({
 
   const title = t("title");
   const description = t("description");
-  const url = `https://shreemate.in/${locale}`;
+  const url = `https://shreemateshwaribus.com//${locale}`;
 
   return {
     title,
@@ -26,8 +26,8 @@ export async function generateMetadata({
     alternates: {
       canonical: url,
       languages: {
-        en: "https://shreemate.in/en",
-        hi: "https://shreemate.in/hi",
+        en: "https://shreemateshwaribus.com//en",
+        hi: "https://shreemateshwaribus.com//hi",
       },
     },
     openGraph: {
@@ -71,7 +71,7 @@ export default async function HomePage({
         items={[
           {
             name: locale === "hi" ? "होम" : "Home",
-            url: `https://shreemate.in/${locale}`,
+            url: `https://shreemateshwaribus.com//${locale}`,
           },
         ]}
       />      

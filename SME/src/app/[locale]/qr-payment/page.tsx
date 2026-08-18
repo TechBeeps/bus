@@ -13,7 +13,7 @@ export async function generateMetadata({
 
   const title = t("title");
   const description = t("description");
-  const url = `https://shreemate.in/${locale}/qr-payment`;
+  const url = `https://shreemateshwaribus.com//${locale}/qr-payment`;
 
   return {
     title,
@@ -21,8 +21,8 @@ export async function generateMetadata({
     alternates: {
       canonical: url,
       languages: {
-        en: "https://shreemate.in/en/qr-payment",
-        hi: "https://shreemate.in/hi/qr-payment",
+        en: "https://shreemateshwaribus.com//en/qr-payment",
+        hi: "https://shreemateshwaribus.com//hi/qr-payment",
       },
     },
     openGraph: {
@@ -68,11 +68,11 @@ export default async function QRPaymentPage({
         items={[
           {
             name: isHindi ? "होम" : "Home",
-            url: `https://shreemate.in/${locale}`,
+            url: `https://shreemateshwaribus.com//${locale}`,
           },
           {
             name: isHindi ? "QR पेमेंट" : "QR Payment",
-            url: `https://shreemate.in/${locale}/qr-payment`,
+            url: `https://shreemateshwaribus.com//${locale}/qr-payment`,
           },
         ]}
       />
