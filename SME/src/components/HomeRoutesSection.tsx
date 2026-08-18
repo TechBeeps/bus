@@ -7,50 +7,22 @@ import { Bus, Clock, MapPin, ArrowRight } from "lucide-react";
 export default function HomeRoutesSection() {
   const t = useTranslations("homeRoutes");
 
-  const routes = [
-    {
-      from: t("routes.0.from"),
-      to: t("routes.0.to"),
-      duration: t("routes.0.duration"),
-      price: t("routes.0.price"),
-      borderColor: "border-[#FED7AA]",
-    },
-    {
-      from: t("routes.1.from"),
-      to: t("routes.1.to"),
-      duration: t("routes.1.duration"),
-      price: t("routes.1.price"),
-      borderColor: "border-[#FDE68A]",
-    },
-    {
-      from: t("routes.2.from"),
-      to: t("routes.2.to"),
-      duration: t("routes.2.duration"),
-      price: t("routes.2.price"),
-      borderColor: "border-[#FEF08A]",
-    },
-    {
-      from: t("routes.3.from"),
-      to: t("routes.3.to"),
-      duration: t("routes.3.duration"),
-      price: t("routes.3.price"),
-      borderColor: "border-[#FED7AA]",
-    },
-    {
-      from: t("routes.4.from"),
-      to: t("routes.4.to"),
-      duration: t("routes.4.duration"),
-      price: t("routes.4.price"),
-      borderColor: "border-[#FDE68A]",
-    },
-    {
-      from: t("routes.5.from"),
-      to: t("routes.5.to"),
-      duration: t("routes.5.duration"),
-      price: t("routes.5.price"),
-      borderColor: "border-[#FEF08A]",
-    },
+  const borderColors = [
+    "border-[#FED7AA]",
+    "border-[#FDE68A]",
+    "border-[#FEF08A]",
+    "border-[#FED7AA]",
+    "border-[#FDE68A]",
+    "border-[#FEF08A]",
   ];
+
+  const routes = [0, 1, 2, 3, 4, 5].map((i) => ({
+    from: t(`routes.${i}.from`),
+    to: t(`routes.${i}.to`),
+    duration: t(`routes.${i}.duration`),
+    price: t(`routes.${i}.price`),
+    borderColor: borderColors[i % borderColors.length],
+  }));
 
   return (
     <section className="py-20">
