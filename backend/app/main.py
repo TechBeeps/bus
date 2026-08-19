@@ -863,7 +863,7 @@ def use_monthly_pass(payload: dict):
         now_ist(),
         "monthly_pass"
     ))
-
+    last_insert_id = cursor.lastrowid
     conn.commit()
 
     # Get updated rides
@@ -901,7 +901,7 @@ def use_monthly_pass(payload: dict):
             "data": {
                         "razorpay_payment_id": "monthly_pass",
                         "bus_id": payload["bus_id"],
-                        "ticket_id": payment_id,
+                        "ticket_id": last_insert_id,
                         "amount": 0,
                         "origin": origin,
                         "destination": destination
