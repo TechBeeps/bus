@@ -925,5 +925,12 @@ def use_monthly_pass(payload: dict):
     }
 
 
+
+
+@app.get("/api/v1/bus")
+def buses():
+    return {"buses": list(BUS_ROUTES.values()), "base_url": "https://bus.shreemateshwaribus.com/"}
+
+
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
