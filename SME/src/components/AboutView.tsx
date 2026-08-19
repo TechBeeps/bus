@@ -14,7 +14,7 @@ export default function AboutView() {
     t("pill3"),
     t("pill4"),
   ];
-//return html
+
   return (
     <div className="flex flex-col">      
       <div className="py-14 sm:py-16 bg-[#E8721A] text-white text-center">
