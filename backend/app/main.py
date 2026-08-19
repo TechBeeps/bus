@@ -899,11 +899,14 @@ def use_monthly_pass(payload: dict):
                 f"Remaining Rides: {remaining_rides}"
             ),
             "data": {
-                "payment_id": payment_id,
-                "bus_id": payload["bus_id"],
-                "remaining_rides": remaining_rides,
-                "type": "MONTHLY_PASS"
-            }
+                        "razorpay_payment_id": "monthly_pass",
+                        "bus_id": payload["bus_id"],
+                        "ticket_id": payment_id,
+                        "amount": 0,
+                        "origin": origin,
+                        "destination": destination
+                    }
+                    
     }
 
     try:
