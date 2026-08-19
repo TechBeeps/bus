@@ -77,6 +77,14 @@ ON monthly_passes(mobile)
 cursor.execute("PRAGMA table_info(payments)")
 columns = [col[1] for col in cursor.fetchall()]
 
+
+
+if "phone_number" not in columns:
+    cursor.execute("""
+    ALTER TABLE payments
+    ADD COLUMN phone_number TEXT
+    """)
+
 if "origin" not in columns:
     cursor.execute("""
     ALTER TABLE payments

@@ -4,6 +4,9 @@ Thumbs.db
 .vscode/
 .idea/
 bus_payments.db
+bus_payments.db-shm
+bus_payments.db-wal
+
 
 # Environment Secrets & Variables (CRITICAL)
 .env

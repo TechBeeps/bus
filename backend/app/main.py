@@ -752,6 +752,8 @@ def use_monthly_pass(payload: dict):
         payload["pin"]
     ))
 
+    
+
     pass_row = cursor.fetchone()
 
     if not pass_row:
@@ -790,16 +792,16 @@ def use_monthly_pass(payload: dict):
 
         if current_time - last_used < timedelta(minutes=2):
 
+            conn.close()
             
 
-            conn.close()
-
             return {
-                "success": True,
+                "success": False,
                 "deducted": False,
                 "remaining_rides": pass_row["remaining_rides"],
                 "message": "Pass already used within 2 minutes"
             }
+        
 
     # Deduct Ride
     cursor.execute("""
