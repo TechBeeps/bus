@@ -23,7 +23,7 @@ jobs:
           script: |
             set -e
 
-            APP_DIR="/home/techbeeps/htdocs/bus.techbeeps.co.in/bus/SME"
+            APP_DIR="/home/shreemateshwaribus/htdocs/shreemateshwaribus.com/bus/SME"
 
             echo "======================================"
             echo "Deploying SME Next.js Application"
