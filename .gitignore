@@ -5,7 +5,6 @@ Thumbs.db
 .idea/
 bus_payments.db
 
-
 # Environment Secrets & Variables (CRITICAL)
 .env
 .env.local
@@ -21,6 +20,7 @@ backend/venv/
 backend/.venv/
 backend/.pytest_cache/
 backend/dist/
+
 
 # JavaScript & Node.js (Frontend & Mobile)
 node_modules/
