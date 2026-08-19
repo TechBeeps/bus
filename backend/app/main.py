@@ -31,8 +31,8 @@ app = FastAPI(
     description="Backend service for QR-based ticketing, payment verification, and fleet management."
 )
 
-RAZORPAY_KEY_ID = "rzp_test_LVIEo9xSbhNfUX"
-RAZORPAY_KEY_SECRET = "TFbLcznEvwrRQZ89GVKr8F8E"
+RAZORPAY_KEY_ID = "rzp_test_TRERJ9RO8gmVih"
+RAZORPAY_KEY_SECRET = "9w31CkmZ3dqkE1ClZDT9z1Mm"
 
 razorpay_client = razorpay.Client(
     auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)
