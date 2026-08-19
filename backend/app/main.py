@@ -249,17 +249,20 @@ BUS_ROUTES = {
     "BUS001": {
         "bus_no": "RJ14PA1234",
         "origin": "Bari Sadri",
-        "destination": "Udaipur"
+        "destination": "Udaipur",
+        "bus_id": "BUS001"
     },
     "BUS002": {
         "bus_no": "RJ14PA5678",
         "origin": "Nimbahera",
-        "destination": "Udaipur"
+        "destination": "Udaipur",
+        "bus_id": "BUS002"
     },
     "BUS003": {
         "bus_no": "RJ14PA1212",
         "origin": "Neemuch",
-        "destination": "Udaipur"
+        "destination": "Udaipur",
+        "bus_id": "BUS003"
     }
 }
 
