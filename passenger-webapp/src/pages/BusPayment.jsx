@@ -14,8 +14,30 @@ export default function BusPayment() {
 const [tab, setTab] = useState("one-time");
 const [pin, setPin] = useState("");
 
+const validateMobile = () => {
+  const mobileRegex = /^[6-9]\d{9}$/;
+
+  if (!mobile) {
+    alert("Please enter mobile number");
+    return false;
+  }
+
+  if (!mobileRegex.test(mobile)) {
+    alert("Please enter a valid 10-digit mobile number");
+    return false;
+  }
+
+  return true;
+};
+
+
 //handle one-time payment
 const handlePay = async () => {
+
+  if (!validateMobile()) {
+    return;
+  }
+
   try {
     
     const response = await axios.post(
@@ -103,6 +125,10 @@ const handlePay = async () => {
 
 //handle monthly pass usage
 const handleMonthlyPass = async () => {
+  if (!validateMobile()) {
+    return;
+  }
+
   try {
 
     const response = await axios.post(
@@ -263,7 +289,10 @@ const currentBus =
                 className="w-full rounded-xl border p-3"
                 placeholder="Enter Mobile Number"
                 value={mobile}
-                onChange={(e) => setMobile(e.target.value)}
+                onChange={(e) => {
+    const value = e.target.value.replace(/\D/g, "");
+    setMobile(value);
+  }}
               />
             </div>
 
@@ -287,7 +316,10 @@ const currentBus =
                 type="text"
                 className="w-full rounded-xl border p-3"
                 value={mobile}
-                onChange={(e) => setMobile(e.target.value)}
+                onChange={(e) => {
+    const value = e.target.value.replace(/\D/g, "");
+    setMobile(value);
+  }}
               />
             </div>
 

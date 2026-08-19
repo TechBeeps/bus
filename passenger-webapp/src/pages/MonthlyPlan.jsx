@@ -10,8 +10,27 @@ export default function MonthlyPlan() {
   const [name, setName] = useState("");
   const [mobile, setMobile] = useState("");
   const [loading, setLoading] = useState(false);
+  const validateMobile = () => {
+  const mobileRegex = /^[6-9]\d{9}$/;
+
+  if (!mobile) {
+    alert("Please enter mobile number");
+    return false;
+  }
+
+  if (!mobileRegex.test(mobile)) {
+    alert("Please enter a valid 10-digit mobile number");
+    return false;
+  }
+
+  return true;
+};
 
   const handlePurchase = async () => {
+    if (!validateMobile()) {
+    return;
+  }
+
     try {
       setLoading(true);
 
@@ -155,9 +174,10 @@ export default function MonthlyPlan() {
               className="w-full rounded-xl border p-3"
               placeholder="Enter Mobile Number"
               value={mobile}
-              onChange={(e) =>
-                setMobile(e.target.value)
-              }
+                onChange={(e) => {
+    const value = e.target.value.replace(/\D/g, "");
+    setMobile(value);
+  }}
             />
           </div>
 
