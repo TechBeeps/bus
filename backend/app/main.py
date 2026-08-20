@@ -545,6 +545,7 @@ def ticketsByid(bus_id: str):
             SELECT
                 id AS ticket_id,
                 amount,
+                cashback,
                 origin,
                 destination,
                 passenger_count,
@@ -560,10 +561,15 @@ def ticketsByid(bus_id: str):
 
         conn.close()
 
-        #these data fetch form row 
-        # { ticket_id: 'TKT009', amount: 150, origin: 'Delhi', destination: 'Jaipur', passenger_count: 2, created_at: '2026-08-17T12:10:00', upi_txn_id: 'UPI123' },
-
-        data = [dict(row) for row in rows]
+        
+        data = [
+        {
+        **dict(row),
+        "amount": (row["amount"] or 0) + (row["cashback"] or 0),
+        "paidamount": (row["amount"] or 0)
+        }
+        for row in rows
+        ]
 
         return {
             "success": True, 
