@@ -8,6 +8,7 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { createNavigationContainerRef } from '@react-navigation/native';
 import { Platform } from 'react-native';
+import colors from './theme/colors';
 const Stack = createNativeStackNavigator();
 const navigationRef = createNavigationContainerRef();
 
@@ -22,6 +23,22 @@ Notifications.setNotificationHandler({
 export default function App() {
   const responseListener = useRef();
 
+  const API_PUSH_TOKEN_URL = 'https://api.shreemateshwaribus.com/api/v1/push-token';
+
+  const sendTokenToServer = async (token) => {
+    if (!token) return;
+    try {
+      await fetch(API_PUSH_TOKEN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+
+    } catch (e) {
+      console.log('Failed to send push token to server', e);
+    }
+  };
+
   useEffect(() => {
     const setup = async () => {
       if (Device.isDevice) {
@@ -33,7 +50,7 @@ export default function App() {
             name: 'default',
             importance: Notifications.AndroidImportance.MAX,
             vibrationPattern: [0, 250, 250, 250],
-            lightColor: '#FF231F7C',
+            lightColor: colors.success,
           });
         }
         if (existingStatus !== 'granted') {
@@ -44,10 +61,12 @@ export default function App() {
         if (finalStatus === 'granted') {
 
           const tokenData = await Notifications.getExpoPushTokenAsync({
-  projectId: '4016f9fc-6631-4114-bfcd-bf8ef9a0c31d',
-});
+            projectId: '4016f9fc-6631-4114-bfcd-bf8ef9a0c31d',
+          });
 
-console.log('Push token:', tokenData.data);
+          const token = tokenData?.data;
+
+          sendTokenToServer(token);
         }
 
 
@@ -58,15 +77,63 @@ console.log('Push token:', tokenData.data);
 
     setup();
 
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      const data = response.notification?.request?.content?.data || {};
-      if (navigationRef.isReady()) {
-        navigationRef.navigate('Notification', { notification: response.notification });
+ responseListener.current =
+  Notifications.addNotificationResponseReceivedListener(async response => {
+    const data =
+      response.notification?.request?.content?.data || {};
+    if (navigationRef.isReady()) {
+      navigationRef.navigate('Notification', {
+        notification: response.notification,
+      });
+
+      await Notifications.clearLastNotificationResponseAsync();
+    }
+  });
+
+
+const checkInitialNotification = async () => {
+  try {
+    const response =
+      await Notifications.getLastNotificationResponseAsync();
+
+    await Notifications.clearLastNotificationResponseAsync();
+
+    if (!response.notification.request.content.data?.razorpay_payment_id) {
+
+      return;
+    }
+
+    const navigateToNotification = () => {
+      if (!navigationRef.isReady()) {
+        return false;
       }
-    });
+
+      navigationRef.navigate('Notification', {
+        notification: response.notification,
+      });
+
+      return true;
+    };
+
+    if (!navigateToNotification()) {
+      const interval = setInterval(() => {
+        if (navigateToNotification()) {
+          clearInterval(interval);
+        }
+      }, 100);
+    }
+
+  } catch (error) {
+    console.log('Initial notification error:',error);
+  }
+};
+
+    checkInitialNotification();
 
     return () => {
-      if (responseListener.current) Notifications.removeNotificationSubscription(responseListener.current);
+      if (responseListener.current && typeof responseListener.current.remove === 'function') {
+        responseListener.current.remove();
+      }
     };
   }, []);
 
