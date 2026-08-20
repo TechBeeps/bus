@@ -9,3 +9,4 @@ root.render(
     <PassengerApp />
   </React.StrictMode>
 );
+

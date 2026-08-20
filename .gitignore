@@ -3,6 +3,10 @@
 Thumbs.db
 .vscode/
 .idea/
+bus_payments.db
+bus_payments.db-shm
+bus_payments.db-wal
+
 
 # Environment Secrets & Variables (CRITICAL)
 .env
@@ -11,6 +15,7 @@ Thumbs.db
 .env.test.local
 .env.production.local
 
+
 # Python Backend
 backend/__pycache__/
 backend/*.pyc
@@ -18,6 +23,7 @@ backend/venv/
 backend/.venv/
 backend/.pytest_cache/
 backend/dist/
+
 
 # JavaScript & Node.js (Frontend & Mobile)
 node_modules/

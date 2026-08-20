@@ -1,0 +1,232 @@
+{
+  "nav": {
+    "home": "Home",
+    "routes": "Routes",
+    "qrPayment": "QR Payment",
+    "about": "About",
+    "language": "हिन्दी"
+  },
+  "hero": {
+    "badge": "मेवाड़ क्षेत्र, राजस्थान",
+    "headline": "Shree Mateshwari Enterprises",
+    "subheadlineHi": "श्री मातेश्वरी एंटरप्राइजेज",
+    "accent": "Connecting Mewar, One Journey at a Time",
+    "description": "Affordable, reliable local bus services across the Mewar region of Rajasthan",
+    "viewRoutes": "View Routes",
+    "payByQr": "Pay by QR"
+  },
+  "homeRoutes": {
+    "title": "Our Bus Routes",
+    "subtitle": "Connecting every corner of Mewar with affordable, comfortable travel",
+    "viewAllRoutes": "View All Routes",
+    "viceVersa": "& Vice Versa",
+    "dailyService": "Daily Service",
+    "fromLabel": "From",
+    "routes": [
+      {
+        "from": "Fatehnagar",
+        "to": "Barisadri",
+        "duration": "2h 15m",
+        "price": "60"
+      },
+      {
+        "from": "Salumbar",
+        "to": "Bhilwara",
+        "duration": "4h 30m",
+        "price": "120"
+      },
+      {
+        "from": "Bhinder",
+        "to": "Bhilwara",
+        "duration": "3h 15m",
+        "price": "90"
+      },
+      {
+        "from": "Aawari Mata Ji",
+        "to": "Udaipur",
+        "duration": "2h 30m",
+        "price": "75"
+      },
+      {
+        "from": "Mangalwar",
+        "to": "Kanore",
+        "duration": "45m",
+        "price": "25"
+      },
+      {
+        "from": "Chittorgarh",
+        "to": "Udaipur",
+        "duration": "1h 45m",
+        "price": "45"
+      }
+    ]
+  },
+  "homeAbout": {
+    "title": "About Our Company",
+    "subtitle": "A Journey of Nearly Three Decades — The Trust of Thousands of Passengers",
+    "founderName": "Mr. Narendra Kumar Purbiya Naresh Chaudhary",
+    "founderRole": "Founder & Owner",
+    "p1": "The service journey of Shree Mateshwari Bus Service began in the year 1998 on the sacred route from Nimbahera to Kanore via Aawari Mata Ji and Sanwaliya Seth Ji. Begun with the trust of passengers and devotees, this journey continues forward even today with the same warmth and responsibility.",
+    "p2": "Since the year 2000, our bus services on the Fatehnagar–Bari Sadri and Mangalwar–Bari Sadri routes have been continuously connecting commuters across the region.",
+    "pill1": "Nominal Fares",
+    "pill2": "Safe & Reliable",
+    "pill3": "Daily Service",
+    "pill4": "Mewar Region",
+    "readMore": "Read more about us"
+  },
+  "homeQRPay": {
+    "title": "Pay by QR & Get Cashback!",
+    "subtitle": "Scan our dynamic QR code to pay your bus fare digitally — and earn cashback on every trip!",
+    "cashbackBadge": "CASHBACK!",
+    "f1": "Dynamic QR per journey",
+    "f2": "Instant cashback offers",
+    "f3": "UPI / all wallets accepted",
+    "f4": "No cash needed",
+    "btn": "Open QR Payment"
+  },
+  "homeWhyUs": {
+    "title": "Why Choose Us?",
+    "c1Title": "Nominal Prices",
+    "c1Desc": "Fares that every commuter can afford — students, farmers, and daily workers.",
+    "c2Title": "Safe & Reliable",
+    "c2Desc": "Experienced drivers, well-maintained buses, and safe journeys every time.",
+    "c3Title": "Daily Service",
+    "c3Desc": "Regular daily services on all routes so you never miss your connection."
+  },
+  "about": {
+    "pageHeadline": "About Our Company",
+    "pageSubheadline": "A Journey of Nearly Three Decades — The Trust of Thousands of Passengers",
+    "founderName": "Mr. Narendra Kumar Purbiya Naresh Chaudhary",
+    "founderRole": "Founder & Owner",
+    "p1": "The service journey of Shree Mateshwari Bus Service began in the year 1998 on the sacred route from Nimbahera to Kanore via Aawari Mata Ji and Sanwaliya Seth Ji. Begun with the trust of passengers and devotees, this journey continues forward even today with the same warmth and dedication.",
+    "p2": "Since the year 2000, our bus services on the Fatehnagar–Bari Sadri and Mangalwar–Bari Sadri routes have been continuously connecting commuters across the region.",
+    "p3": "Launched in 2016, our bus services on the Udaipur–Bari Sadri and Udaipur–Nimbahera routes remain active and continuous to this day. Times and circumstances evolved, passenger numbers fluctuated through seasons, but our continuity of service and deep bond with our passengers never wavered. For us, operating buses is not merely a business, but a heartfelt responsibility and relationship with the passengers who have placed their trust in us for years.",
+    "p4": "Since 2019, services have also been operating smoothly for passenger convenience on the Salumbar–Bhilwara route via Bambora, Bhinder, and Kirki Chowki.",
+    "p5": "For us, every passenger is not just a commuter, but a cherished member of the Mateshwari family. In this spirit of goodwill, our buses make a humble community effort to deliver tiffins, vital medicines, and essential supplies to Udaipur free of cost for patients in need.",
+    "p6": "With the divine blessings of Aawari Mata Ji, Sanwaliya Seth, Bheruji Bawji, and Sati Mata Ji, and the enduring trust of all our passengers, may this journey continue to flourish forward — for this is our greatest earning and highest honor.",
+    "quoteText": "“Routes and times kept changing, but our warmth, responsibility, and spirit of service towards our passengers always remained steadfast.”",
+    "quoteAuthor": "Shree Mateshwari Bus Service",
+    "pill1": "Punctuality",
+    "pill2": "Safe Journey",
+    "pill3": "Respectful Conduct",
+    "pill4": "Continuous Service",
+    "pill5": "Decades of Trust",
+    "contactBoxTitle": "Contact Us",
+    "locationVal": "Mewar Region, Rajasthan, India",
+    "phoneVal": "+91 9929261238",
+    "emailVal": "naresh12881288@gmail.com"
+  },
+  "routes": {
+    "pageHeadline": "Our Bus Routes",
+    "pageSubheadline": "Connecting every corner of Mewar with affordable, comfortable travel",
+    "viceVersa": "& Vice Versa",
+    "fromLabel": "From",
+    "departureTimes": "DEPARTURE TIMES",
+    "payByQrBtn": "Pay by QR & Get Cashback",
+    "list": [
+      {
+        "from": "Fatehnagar",
+        "to": "Barisadri",
+        "price": "60",
+        "duration": "2h 15m",
+        "distance": "~80 km",
+        "times": ["6:00 AM", "10:00 AM", "2:00 PM", "5:30 PM"]
+      },
+      {
+        "from": "Salumbar",
+        "to": "Bhilwara",
+        "price": "120",
+        "duration": "4h 30m",
+        "distance": "~170 km",
+        "times": ["5:30 AM", "9:30 AM", "1:30 PM", "5:00 PM"]
+      },
+      {
+        "from": "Bhinder",
+        "to": "Bhilwara",
+        "price": "90",
+        "duration": "3h 15m",
+        "distance": "~130 km",
+        "times": ["6:30 AM", "10:30 AM", "2:30 PM", "6:00 PM"]
+      },
+      {
+        "from": "Aawari Mata Ji",
+        "to": "Udaipur",
+        "price": "75",
+        "duration": "2h 30m",
+        "distance": "~95 km",
+        "times": ["7:00 AM", "11:00 AM", "3:00 PM", "6:30 PM"]
+      },
+      {
+        "from": "Mangalwar",
+        "to": "Kanore",
+        "price": "25",
+        "duration": "45m",
+        "distance": "~30 km",
+        "times": ["7:30 AM", "11:30 AM", "3:30 PM", "7:00 PM"]
+      },
+      {
+        "from": "Chittorgarh",
+        "to": "Udaipur",
+        "price": "45",
+        "duration": "1h 45m",
+        "distance": "~70 km",
+        "times": ["7:00 AM", "10:30 AM", "2:30 PM", "6:30 PM"]
+      }
+    ]
+  },
+  "qrPayment": {
+    "pageHeadline": "Pay by QR & Get Cashback!",
+    "pageSubheadline": "Scan our dynamic QR code to pay your bus fare digitally — and earn cashback on every trip!",
+    "comingSoonTitle": "QR Payment System Coming Soon",
+    "comingSoonDesc": "We are building a dynamic QR code system that will make digital fare payment easy — with cashback on every trip.",
+    "f1": "Dynamic QR per journey",
+    "f2": "Instant cashback offers",
+    "f3": "UPI / all wallets accepted",
+    "f4": "No cash needed",
+    "viewAllRoutes": "View All Routes"
+  },
+  "footer": {
+    "brandTagline": "Connecting Mewar, One Journey at a Time",
+    "ownerCredit": "Owned by Mr. Narendra Kumar Purbiya Naresh Chaudhary",
+    "quickLinks": "Quick Links",
+    "popularRoutes": "Popular Routes",
+    "contactUs": "Contact Us",
+    "addressVal": "Mangalwar Choraha, Chittorgarh, Rajasthan",
+    "phoneVal": "+91 99282 61238",
+    "emailVal": "naresh12881288@gmail.com",
+    "privacyPolicy": "Privacy Policy",
+    "termsConditions": "Terms & Conditions",
+    "refundPolicy": "Refund & Cancellation Policy",
+    "copyright": "© 2026 Shree Mateshwari Enterprises. All rights reserved."
+  },
+  "meta": {
+    "home": {
+      "title": "Shree Mateshwari Enterprises — SME Buses | Connecting Mewar",
+      "description": "Affordable, reliable local bus services across the Mewar region of Rajasthan. Daily routes connecting Fatehnagar, Barisadri, Salumbar, Bhilwara, Bhinder, Aawari Mata Ji, Udaipur, Mangalwar, Kanore."
+    },
+    "routes": {
+      "title": "Our Bus Routes & Schedules | Shree Mateshwari Enterprises",
+      "description": "Daily bus routes, departure timings, and ticket fares connecting Fatehnagar, Barisadri, Salumbar, Bhilwara, Bhinder, Aawari Mata Ji, Udaipur, Mangalwar, Kanore."
+    },
+    "qrPayment": {
+      "title": "Pay by QR & Get Cashback | Shree Mateshwari Enterprises",
+      "description": "Scan our dynamic QR code to pay your bus fare digitally with instant cashback offers on every trip."
+    },
+    "about": {
+      "title": "About Us | Shree Mateshwari Enterprises — SME Buses",
+      "description": "A journey of nearly three decades — the trust of thousands of passengers. Safe and reliable bus services by Shree Mateshwari Enterprises."
+    },
+    "refundPolicy": {
+      "title": "Refund & Cancellation Policy | Shree Mateshwari Enterprises",
+      "description": "Read the official Refund & Cancellation Policy for bus bookings with Shree Mateshwari Enterprises."
+    },
+    "privacyPolicy": {
+      "title": "Privacy Policy | Shree Mateshwari Enterprises",
+      "description": "Read the official Privacy Policy for Shree Mateshwari Enterprises."
+    },
+    "termsConditions": {
+      "title": "Terms & Conditions | Shree Mateshwari Enterprises",
+      "description": "Read the official Terms and Conditions for Shree Mateshwari Enterprises."
+    }
+  }
+}

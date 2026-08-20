@@ -23,8 +23,9 @@ import {
 } from "react-router-dom";
 import QrScanner from "./pages/QrScanner";
 import BusPayment from "./pages/BusPayment";
-
+import MonthlyPlan from "./pages/MonthlyPlan";
 import TicketSuccess from "./pages/TicketSuccess";
+import MonthlyPassResult from "./pages/MonthlyPassResult";
 
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
@@ -40,7 +41,8 @@ function App() {
           element={<BusPayment />}
         />
         <Route path="/ticket/:paymentId" element={<TicketSuccess />} />
-        
+        <Route path="/monthly-plan/:busId" element={<MonthlyPlan />} />
+        <Route path="/monthly-pass-result" element={<MonthlyPassResult />} />
       </Routes>
       
     </BrowserRouter>

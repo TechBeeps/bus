@@ -5,3 +5,5 @@ pydantic
 python-dotenv
 pytest
 razorpay
+requests
+tzdata

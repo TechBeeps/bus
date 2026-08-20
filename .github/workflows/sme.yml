@@ -1,0 +1,59 @@
+name: SME Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "SME/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy SME Next.js Application
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT }}
+
+          script: |
+            set -e
+
+            APP_DIR="/home/shreemateshwaribus/htdocs/shreemateshwaribus.com/bus/SME"
+
+            echo "======================================"
+            echo "Deploying SME Next.js Application"
+            echo "======================================"
+
+            cd "$APP_DIR"
+
+            echo "Pulling latest code..."
+            git pull origin main
+
+            echo "Installing dependencies..."
+            npm ci
+
+            echo "Building Next.js application..."
+            npm run build
+
+            echo "Starting/restarting PM2 application..."
+
+            if pm2 describe sme > /dev/null 2>&1; then
+              pm2 restart sme
+            else
+              pm2 start npm --name "sme" -- start -- --port 3003
+            fi
+
+            pm2 save
+
+            echo "======================================"
+            echo "SME deployment completed"
+            echo "======================================"
+
+            echo "PM2 status:"
+            pm2 status sme
+
