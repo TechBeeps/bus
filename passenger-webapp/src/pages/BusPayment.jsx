@@ -239,6 +239,10 @@ const currentBus =
 
           </div>
 
+            <div className="mb-5 text-center">
+            <p>Get 10% Off Instantly Every Time You Scan & Pay for Your Bus Ticket!</p>
+            </div>
+
           <div className="mb-5 flex rounded-2xl bg-slate-100 p-1">
             <button
               onClick={() => setTab("one-time")}
@@ -296,7 +300,7 @@ const currentBus =
               />
             </div>
 
-            
+
 
             <button
               onClick={handlePay}
@@ -304,7 +308,8 @@ const currentBus =
             >
               Pay Now
             </button>
-
+            
+            
           </>
       )}
 

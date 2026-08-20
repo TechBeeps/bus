@@ -271,8 +271,8 @@ def create_order(payload: CreatePaymentRequest):
 
     payment_id = f"PAY-{int(datetime.now().timestamp())}"
 
-    #cashback = round(payload.amount * 0.10, 2)
-    cashback = math.floor(payload.amount * 0.10 + 0.5)
+    cashback = round(payload.amount * 0.10, 2)
+    #cashback = math.floor(payload.amount * 0.10 + 0.5)
     
 
     discountAmount = payload.amount - cashback
