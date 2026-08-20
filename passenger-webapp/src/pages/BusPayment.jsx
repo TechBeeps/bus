@@ -80,7 +80,7 @@ const handlePay = async () => {
         ondismiss: async function () {
 
             await axios.post(
-            "${config.API_URL}/payment/update-status",
+            `${config.API_URL}/payment/update-status`,
             {
                 payment_id: data.payment_id,
                 status: "CANCELLED"
@@ -100,7 +100,7 @@ const handlePay = async () => {
 
       try {
         await axios.post(
-          "${config.API_URL}/payment/update-status",
+          `${config.API_URL}/payment/update-status`,
           {
             payment_id: data.payment_id,
             status: "FAILED",

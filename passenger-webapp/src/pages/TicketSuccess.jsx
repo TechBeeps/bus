@@ -145,15 +145,21 @@ export default function TicketPage() {
 
     {/* Body */}
     <div className="p-4 space-y-3">
-
+      {payment.status == "PAID" && (
       <div className="flex justify-between">
         <span className="text-slate-500">Ticket ID</span>
-        <span>{payment.payment_id}</span>
+        <span>{payment.id}</span>
       </div>
+      )}
 
       <div className="flex justify-between">
         <span className="text-slate-500">Bus</span>
-        <span>RJ14PA1234</span>
+        <span>{payment.bus_id}</span>
+      </div>
+
+      <div className="flex justify-between">
+        <span className="text-slate-500">Route</span>
+        <span>{payment.origin} - {payment.destination}</span>
       </div>
 
       {/* <div className="flex justify-between">
@@ -162,23 +168,31 @@ export default function TicketPage() {
       </div> */}
 
       <div className="flex justify-between">
-        <span className="text-slate-500">Amount</span>
-        <span>₹{payment.amount}</span>
+        <span className="text-slate-500">Total Amount</span>
+        <span className="font-semibold">₹{payment.amount + payment.cashback}</span>
       </div>
+      {payment.status == "PAID" && (
+      <div className="flex justify-between">
+        <span className="text-slate-500">Payed Amount</span>
+        <span className="font-semibold">₹{payment.amount}</span>
+      </div>
+        )}
+      {payment.cashback > 0 && payment.status == "PAID" && (
+      <div className="flex justify-between">
+        <span className="text-slate-500 text-green-600">Discount</span>
+        <span className="font-semibold text-green-600">₹{payment.cashback}</span>
+      </div>
+       )}
+
+      
+
       
        <div className="flex justify-between">
         <span className="text-slate-500">Mobile</span>
         <span>{payment.phone_number}</span>
       </div>
 
-        {payment.cashback > 0 && (
-        <div className="flex justify-between border-t pt-2">
-        <span>Cashback Earned</span>
-        <span className="font-semibold text-green-600">
-        ₹{payment.cashback}
-        </span>
-        </div>
-        )}
+        
 
       <div className="flex justify-between">
         <span className="text-slate-500">Status</span>

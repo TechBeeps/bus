@@ -273,8 +273,12 @@ def create_order(payload: CreatePaymentRequest):
 
     cashback = round(payload.amount * 0.10, 2)
 
+    discountAmount = payload.amount - cashback
+
+    print(discountAmount)
+
     order = razorpay_client.order.create({
-        "amount": int(payload.amount * 100),
+        "amount": int(discountAmount * 100),
         "currency": "INR",
         "receipt": payment_id
     })
@@ -288,7 +292,7 @@ def create_order(payload: CreatePaymentRequest):
     payment_logs[payment_id] = {
         "payment_id": payment_id,
         "bus_id": payload.bus_id,
-        "amount": payload.amount,
+        "amount": discountAmount,
         "cashback": cashback,
         "status": "INITIATED",
         "razorpay_order_id": order["id"],
@@ -319,7 +323,7 @@ def create_order(payload: CreatePaymentRequest):
     """, (
         payment_id,
         payload.bus_id,
-        payload.amount,
+        discountAmount,
         cashback,
         "INITIATED",
         order["id"],
