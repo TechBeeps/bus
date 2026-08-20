@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 import random
 from datetime import datetime, timedelta
 import time
-
+import math
 
 IST = ZoneInfo("Asia/Kolkata")
 
@@ -271,11 +271,11 @@ def create_order(payload: CreatePaymentRequest):
 
     payment_id = f"PAY-{int(datetime.now().timestamp())}"
 
-    cashback = round(payload.amount * 0.10, 2)
+    #cashback = round(payload.amount * 0.10, 2)
+    cashback = math.floor(payload.amount * 0.10 + 0.5)
+    
 
     discountAmount = payload.amount - cashback
-
-    print(discountAmount)
 
     order = razorpay_client.order.create({
         "amount": int(discountAmount * 100),
