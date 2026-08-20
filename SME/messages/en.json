@@ -63,11 +63,11 @@
   },
   "homeAbout": {
     "title": "About Our Company",
-    "subtitle": "Trusted transport partner of Mewar since 2009",
+    "subtitle": "A Journey of Nearly Three Decades — The Trust of Thousands of Passengers",
     "founderName": "Mr. Narendra Kumar Purbiya Naresh Chaudhary",
     "founderRole": "Founder & Owner",
-    "p1": "Shree Mateshwari Enterprises has been proudly serving the people of Mewar region for over 15 years. Founded by Mr. Narendra Kumar Purbiya Naresh Chaudhary, our mission is simple — provide safe, affordable, and reliable bus services to every corner of Rajasthan's heartland.",
-    "p2": "We operate multiple daily routes connecting Fatehnagar, Barisadri, Salumbar, Bhilwara, Bhinder, Aawari Mata Ji, Udaipur, Mangalwar, Kanore and surrounding areas. Our buses run on nominal prices so that every commuter — student, farmer, or professional — can travel with dignity.",
+    "p1": "The service journey of Shree Mateshwari Bus Service began in the year 1998 on the sacred route from Nimbahera to Kanore via Aawari Mata Ji and Sanwaliya Seth Ji. Begun with the trust of passengers and devotees, this journey continues forward even today with the same warmth and responsibility.",
+    "p2": "Since the year 2000, our bus services on the Fatehnagar–Bari Sadri and Mangalwar–Bari Sadri routes have been continuously connecting commuters across the region.",
     "pill1": "Nominal Fares",
     "pill2": "Safe & Reliable",
     "pill3": "Daily Service",
@@ -95,18 +95,25 @@
   },
   "about": {
     "pageHeadline": "About Our Company",
-    "pageSubheadline": "Trusted transport partner of Mewar since 2009",
+    "pageSubheadline": "A Journey of Nearly Three Decades — The Trust of Thousands of Passengers",
     "founderName": "Mr. Narendra Kumar Purbiya Naresh Chaudhary",
     "founderRole": "Founder & Owner",
-    "p1": "Shree Mateshwari Enterprises has been proudly serving the people of Mewar region for over 15 years. Founded by Mr. Narendra Kumar Purbiya Naresh Chaudhary, our mission is simple — provide safe, affordable, and reliable bus services to every corner of Rajasthan's heartland.",
-    "p2": "We operate multiple daily routes connecting Fatehnagar, Barisadri, Salumbar, Bhilwara, Bhinder, Aawari Mata Ji, Udaipur, Mangalwar, Kanore and surrounding areas. Our buses run on nominal prices so that every commuter — student, farmer, or professional — can travel with dignity.",
-    "pill1": "Nominal Prices",
-    "pill2": "Safe & Reliable",
-    "pill3": "Daily Service",
-    "pill4": "Mewar Region",
+    "p1": "The service journey of Shree Mateshwari Bus Service began in the year 1998 on the sacred route from Nimbahera to Kanore via Aawari Mata Ji and Sanwaliya Seth Ji. Begun with the trust of passengers and devotees, this journey continues forward even today with the same warmth and dedication.",
+    "p2": "Since the year 2000, our bus services on the Fatehnagar–Bari Sadri and Mangalwar–Bari Sadri routes have been continuously connecting commuters across the region.",
+    "p3": "Launched in 2016, our bus services on the Udaipur–Bari Sadri and Udaipur–Nimbahera routes remain active and continuous to this day. Times and circumstances evolved, passenger numbers fluctuated through seasons, but our continuity of service and deep bond with our passengers never wavered. For us, operating buses is not merely a business, but a heartfelt responsibility and relationship with the passengers who have placed their trust in us for years.",
+    "p4": "Since 2019, services have also been operating smoothly for passenger convenience on the Salumbar–Bhilwara route via Bambora, Bhinder, and Kirki Chowki.",
+    "p5": "For us, every passenger is not just a commuter, but a cherished member of the Mateshwari family. In this spirit of goodwill, our buses make a humble community effort to deliver tiffins, vital medicines, and essential supplies to Udaipur free of cost for patients in need.",
+    "p6": "With the divine blessings of Aawari Mata Ji, Sanwaliya Seth, Bheruji Bawji, and Sati Mata Ji, and the enduring trust of all our passengers, may this journey continue to flourish forward — for this is our greatest earning and highest honor.",
+    "quoteText": "“Routes and times kept changing, but our warmth, responsibility, and spirit of service towards our passengers always remained steadfast.”",
+    "quoteAuthor": "Shree Mateshwari Bus Service",
+    "pill1": "Punctuality",
+    "pill2": "Safe Journey",
+    "pill3": "Respectful Conduct",
+    "pill4": "Continuous Service",
+    "pill5": "Decades of Trust",
     "contactBoxTitle": "Contact Us",
     "locationVal": "Mewar Region, Rajasthan, India",
-    "phoneVal": "+91 99282 61238",
+    "phoneVal": "+91 9929261238",
     "emailVal": "naresh12881288@gmail.com"
   },
   "routes": {
@@ -207,11 +214,19 @@
     },
     "about": {
       "title": "About Us | Shree Mateshwari Enterprises — SME Buses",
-      "description": "Trusted transport partner of Mewar since 2009. Founded by Mr. Narendra Kumar Purbiya Naresh Chaudhary, providing safe and reliable bus services."
+      "description": "A journey of nearly three decades — the trust of thousands of passengers. Safe and reliable bus services by Shree Mateshwari Enterprises."
     },
     "refundPolicy": {
       "title": "Refund & Cancellation Policy | Shree Mateshwari Enterprises",
       "description": "Read the official Refund & Cancellation Policy for bus bookings with Shree Mateshwari Enterprises."
+    },
+    "privacyPolicy": {
+      "title": "Privacy Policy | Shree Mateshwari Enterprises",
+      "description": "Read the official Privacy Policy for Shree Mateshwari Enterprises."
+    },
+    "termsConditions": {
+      "title": "Terms & Conditions | Shree Mateshwari Enterprises",
+      "description": "Read the official Terms and Conditions for Shree Mateshwari Enterprises."
     }
   }
 }
