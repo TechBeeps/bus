@@ -386,7 +386,7 @@ def payment_success(payload: PaymentSuccessRequest):
     conn.commit()
 
     cursor.execute("""
-    SELECT origin, destination, amount, bus_id, id AS ticket_id
+    SELECT origin, destination, amount, bus_id, id AS ticket_id, cashback
     FROM payments
     WHERE payment_id=?
     """, (payload.payment_id,))
@@ -398,6 +398,7 @@ def payment_success(payload: PaymentSuccessRequest):
     amount = ticket[2]
     bus_id = ticket[3]
     ticket_id = ticket[4]
+    cashback = ticket[5]
 
     cursor.execute("""
         SELECT token FROM push_token
@@ -418,7 +419,7 @@ def payment_success(payload: PaymentSuccessRequest):
         "to": expo_tokens,
         "title": "New Ticket Booked",
         "body": (
-        f"Fare: ₹{amount}\n"
+        f"Fare: ₹{amount + cashback}\n"
         f"Route: {origin} → {destination}\n"
         f"Bus No: {bus_id}\n"
         f"Ticket ID: {payload.payment_id}"
@@ -427,7 +428,8 @@ def payment_success(payload: PaymentSuccessRequest):
             "razorpay_payment_id": payload.payment_id,
             "bus_id": bus_id,
             "ticket_id": ticket_id,
-            "amount": amount,
+            "amount": amount + cashback,
+            "cashback": cashback,
             "origin": origin,
             "destination": destination
         }
