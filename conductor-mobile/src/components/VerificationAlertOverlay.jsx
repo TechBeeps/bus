@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import colors from '../theme/colors';
 
 export default function VerificationAlertOverlay({ visible, ticket, onDismiss }) {
   return (
@@ -26,16 +27,16 @@ export default function VerificationAlertOverlay({ visible, ticket, onDismiss })
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+    backgroundColor: colors.overlayStrong,
     justifyContent: 'center',
     padding: 24,
   },
   overlay: {
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.surfaceDark,
     borderRadius: 24,
     padding: 24,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 14 },
     shadowOpacity: 0.22,
     shadowRadius: 18,
@@ -44,42 +45,42 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#bbf7d0',
+    color: colors.successSoft,
     marginBottom: 12,
   },
   subTitle: {
     fontSize: 16,
-    color: '#e2e8f0',
+    color: colors.border,
     marginBottom: 24,
     textAlign: 'center',
   },
   ticketBox: {
     width: '100%',
     borderRadius: 20,
-    backgroundColor: '#152536',
+    backgroundColor: colors.overlayPanel,
     padding: 18,
     marginBottom: 24,
   },
   fieldLabel: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: colors.textSubtle,
     textTransform: 'uppercase',
     marginBottom: 4,
   },
   fieldValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#f8fafc',
+    color: colors.background,
     marginBottom: 12,
   },
   button: {
-    backgroundColor: '#22c55e',
+    backgroundColor: colors.success,
     paddingVertical: 14,
     paddingHorizontal: 36,
     borderRadius: 999,
   },
   buttonText: {
-    color: '#0f172a',
+    color: colors.surfaceDark,
     fontWeight: '700',
     fontSize: 16,
   },

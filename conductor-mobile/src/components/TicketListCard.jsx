@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import colors from '../theme/colors';
 
 export default function TicketListCard({ ticket }) {
   return (
@@ -21,9 +22,9 @@ const styles = StyleSheet.create({
   card: {
     padding: 18,
     borderRadius: 24,
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.surfaceDark,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.18,
     shadowRadius: 18,
@@ -35,12 +36,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   ticketTitle: {
-    color: '#f8fafc',
+    color: colors.background,
     fontWeight: '800',
     fontSize: 16,
   },
   status: {
-    color: '#22c55e',
+    color: colors.success,
     fontWeight: '700',
     fontSize: 14,
   },
@@ -48,7 +49,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   detailItem: {
-    color: '#cbd5e1',
+    color: colors.border,
     fontSize: 14,
   },
 });

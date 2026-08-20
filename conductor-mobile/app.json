@@ -1,4 +1,59 @@
 {
-  "name": "TempShell",
-  "displayName": "TempShell"
+  "expo": {
+    "name": "SMB Conductor",
+    "slug": "conductor-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "conductor-mobile",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.techbeeps.conductormobile"
+    },
+    "android": {
+      "package": "com.techbeeps.conductormobile",
+      "googleServicesFile": "./google-services.json",
+      "adaptiveIcon": {
+        "backgroundColor": "#1e1b4b",
+        "foregroundImage": "./assets/adaptive-icon.png"
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-audio",
+      "expo-notifications",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "buildArchs": [
+              "arm64-v8a"
+            ]
+          }
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/icon.png",
+          "backgroundColor": "#ffffff",
+          "imageWidth": 200
+        }
+      ],
+      "expo-build-properties",
+      "expo-asset"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "4016f9fc-6631-4114-bfcd-bf8ef9a0c31d"
+      }
+    }
+  }
 }
