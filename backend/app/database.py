@@ -15,7 +15,6 @@ DB_NAME = os.getenv("DB_NAME", "bus_ticketing")
 
 print(f"[DATABASE] MySQL Target -> {DB_USER}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
 
-
 def get_connection(database: str = DB_NAME):
     """
     Returns a MySQL database connection.
@@ -49,7 +48,6 @@ def get_connection(database: str = DB_NAME):
         if database:
             config["database"] = database
         return pymysql.connect(**config)
-
 
 def get_cursor(conn):
     """

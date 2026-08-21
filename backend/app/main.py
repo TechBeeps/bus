@@ -1039,6 +1039,7 @@ def use_monthly_pass(payload: dict):
         conn.close()
         return {
             "success": False,
+
             "message": "No rides remaining",
         }
 
@@ -1049,6 +1050,7 @@ def use_monthly_pass(payload: dict):
         WHERE pass_id = %s
         ORDER BY id DESC
         LIMIT 1
+
     """, (pass_row["pass_id"],))
 
     last_usage = cursor.fetchone()
@@ -1057,14 +1059,14 @@ def use_monthly_pass(payload: dict):
         try:
             last_used = datetime.fromisoformat(str(last_usage["used_at"]))
             current_time = datetime.now(last_used.tzinfo) if last_used.tzinfo else datetime.now()
-            if current_time - last_used < timedelta(minutes=2):
+            if current_time - last_used < timedelta(hours=3):  # 3 hours cooldown
                 cursor.close()
                 conn.close()
                 return {
                     "success": False,
                     "deducted": False,
                     "remaining_rides": pass_row["remaining_rides"],
-                    "message": "Pass already used within 2 minutes",
+                    "message": "Pass already used within 3 hours",
                 }
         except Exception as e:
             print("Time parse error:", e)
@@ -1232,9 +1234,9 @@ def public_buses():
     return {"buses": list(BUS_ROUTES.values()), "base_url": "https://bus.shreemateshwaribus.com/"}
 
 
-# =========================================================================
+
 # --- ADMIN AUTHENTICATION ---
-# =========================================================================
+
 
 @app.post("/api/v1/admin/login")
 def admin_login(payload: AdminLoginRequest):
@@ -1279,9 +1281,9 @@ def admin_me():
     }
 
 
-# =========================================================================
+
 # --- DYNAMIC SYSTEM SETTINGS (CASHBACK & MIN SPEND) ---
-# =========================================================================
+
 
 @app.get("/api/v1/admin/settings")
 def get_admin_settings():

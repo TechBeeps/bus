@@ -37,5 +37,5 @@ class PassengerWallet(Base):
     phone_number = Column(String, primary_key=True)
     balance = Column(Float, default=0.0)
     overdraft_allowed = Column(Boolean, default=True)
-    emergency_trips_used = Column(Integer, default=0) # Overdraft tracking
+    emergency_trips_used = Column(Integer, default=0) 
     cashback_earned = Column(Float, default=0.0)

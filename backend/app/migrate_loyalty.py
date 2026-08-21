@@ -4,6 +4,7 @@ def run_migration():
     conn = get_connection()
     cursor = get_cursor(conn)
 
+
     # 1. Create loyalty_rules table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS loyalty_rules (
@@ -50,7 +51,7 @@ def run_migration():
     conn.commit()
     cursor.close()
     conn.close()
-    print("Loyalty Migration Completed Successfully.")
+    #print("Loyalty Migration Completed Successfully.")
 
 if __name__ == "__main__":
     run_migration()
