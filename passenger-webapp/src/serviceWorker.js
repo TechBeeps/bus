@@ -1,28 +1,33 @@
 // src/serviceWorker.js
 export function register() {
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      const swUrl = `${process.env.PUBLIC_URL}/service-worker.js`;
-      
+    const registerSW = () => {
+      const swUrl = '/service-worker.js';
       navigator.serviceWorker
         .register(swUrl)
-        .then(registration => {
-          console.log('SMB Buses Service Worker registered: ', registration);
+        .then((registration) => {
+          console.log('Shree Mateshwari Service Worker registered successfully:', registration.scope);
         })
-        .catch(error => {
-          console.error('SMB Buses Service Worker registration failed: ', error);
+        .catch((error) => {
+          console.error('Service Worker registration failed:', error);
         });
-    });
+    };
+
+    if (document.readyState === 'complete') {
+      registerSW();
+    } else {
+      window.addEventListener('load', registerSW);
+    }
   }
 }
 
 export function unregister() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.ready
-      .then(registration => {
+      .then((registration) => {
         registration.unregister();
       })
-      .catch(error => {
+      .catch((error) => {
         console.error(error.message);
       });
   }

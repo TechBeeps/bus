@@ -3,23 +3,47 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#000000" />
-  <meta name="description" content="SMB Buses - Your Trusted Bus Travel Companion" />
+  <meta name="theme-color" content="#4f46e5" />
+  <meta name="description" content="Shree Mateshwari Buses - Instant QR Bus Ticketing and Fleet Booking" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="SMB Buses" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Shree Mateshwari" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="application-name" content="SMB Buses" />
+  <meta name="application-name" content="Shree Mateshwari" />
   <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
   <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
   <link rel="icon" type="image/x-icon" href="%PUBLIC_URL%/favicon.ico" />
   <link rel="icon" type="image/png" sizes="32x32" href="%PUBLIC_URL%/favicon-32x32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="%PUBLIC_URL%/favicon-16x16.png" />
-  <meta property="og:title" content="SMB Buses" />
-  <meta property="og:description" content="Your Trusted Bus Travel Companion" />
+  <meta property="og:title" content="Shree Mateshwari Buses" />
+  <meta property="og:description" content="Instant QR Bus Ticketing and Fleet Booking" />
   <meta property="og:type" content="website" />
+  
+  <!-- Global PWA Capture & Service Worker Init -->
+  <script>
+    window.deferredPwaPrompt = null;
+    window.addEventListener('beforeinstallprompt', function(e) {
+      e.preventDefault();
+      window.deferredPwaPrompt = e;
+      window.dispatchEvent(new CustomEvent('pwa-prompt-ready'));
+      console.log('PWA: beforeinstallprompt event captured successfully in head');
+    });
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/service-worker.js')
+          .then(function(reg) {
+            console.log('PWA: ServiceWorker registered, scope:', reg.scope);
+          })
+          .catch(function(err) {
+            console.error('PWA: ServiceWorker registration error:', err);
+          });
+      });
+    }
+  </script>
+
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-  <title>SMB Buses</title>
+  <title>Shree Mateshwari Buses</title>
 </head>
 <body>
   <div id="root"></div>
