@@ -109,6 +109,107 @@ class MonthlyPassUseRequest(BaseModel):
     pin: str
 
 
+# --- Admin & Fleet Management Schemas ---
+class AdminLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class SettingsUpdateRequest(BaseModel):
+    default_cashback_pct: float
+    min_spend_amount: float
+
+
+class CityCreateRequest(BaseModel):
+    name: str
+    state: Optional[str] = "Rajasthan"
+
+
+class CityUpdateRequest(BaseModel):
+    name: str
+    state: Optional[str] = "Rajasthan"
+    status: Optional[str] = "ACTIVE"
+
+
+class ConductorCreateRequest(BaseModel):
+    name: str
+    mobile: str
+    email: Optional[str] = ""
+    password: str
+    gender: Optional[str] = "Male"
+    assigned_bus_id: Optional[str] = None
+
+
+class ConductorUpdateRequest(BaseModel):
+    name: str
+    mobile: str
+    email: Optional[str] = ""
+    password: Optional[str] = None
+    gender: Optional[str] = "Male"
+    assigned_bus_id: Optional[str] = None
+    status: Optional[str] = "ACTIVE"
+
+
+class BusCreateRequest(BaseModel):
+    bus_id: str
+    bus_number: str
+    origin_city: str
+    destination_city: str
+    current_conductor_id: Optional[str] = None
+    fare_amount: Optional[float] = 50.0
+    status: Optional[str] = "ACTIVE"
+
+
+class BusUpdateRequest(BaseModel):
+    bus_number: str
+    origin_city: str
+    destination_city: str
+    current_conductor_id: Optional[str] = None
+    fare_amount: Optional[float] = 50.0
+    status: Optional[str] = "ACTIVE"
+
+
+class BusReassignRequest(BaseModel):
+    conductor_id: str
+
+
+class ShiftLogCreateRequest(BaseModel):
+    bus_id: str
+    conductor_id: str
+    shift_date: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    collection_amount: Optional[float] = 0.0
+    tickets_count: Optional[int] = 0
+    status: Optional[str] = "COMPLETED"
+
+
+class AdminPassCreateRequest(BaseModel):
+    name: str
+    mobile: str
+    origin_city: Optional[str] = "Bari Sadri"
+    destination_city: Optional[str] = "Udaipur"
+    route: Optional[str] = None
+    bus_id: Optional[str] = None
+    amount: Optional[float] = 1000.0
+    total_rides: Optional[int] = 62
+    pin: Optional[str] = None
+
+
+class AdminPassUpdateRequest(BaseModel):
+    name: str
+    mobile: str
+    origin_city: Optional[str] = "Bari Sadri"
+    destination_city: Optional[str] = "Udaipur"
+    route: Optional[str] = None
+    amount: Optional[float] = 1000.0
+    total_rides: Optional[int] = 62
+    remaining_rides: Optional[int] = None
+    used_rides: Optional[int] = None
+    pin: Optional[str] = None
+    status: Optional[str] = "ACTIVE"
+
+
 # --- Mock In-Memory Store for MVP ---
 tickets_db = {}
 conductor_live_alerts = {}
@@ -196,6 +297,62 @@ def notify_conductor(bus_id: str, ticket: dict):
     print(f"[REALTIME ALERT] Bus {bus_id} -> Payment Verified for Ticket {ticket['ticket_id']}")
 
 
+def register_or_update_customer(cursor, mobile: str, name: str = "Customer", cashback: float = 0.0, amount: float = 0.0):
+    """
+    Registers a new unique customer in 'user' table if mobile does not exist.
+    If already exists, updates total_tickets, total_spent, and cashback without duplicating.
+    Ensures 1-time unique customer entry per mobile number.
+    """
+    if not mobile or not str(mobile).strip():
+        return
+
+    clean_mobile = str(mobile).strip()
+    if clean_mobile in ("Cash / QR", "monthly_pass", "N/A", "Unassigned"):
+        return
+
+    try:
+        cursor.execute(
+            "SELECT id, name, cashback, total_tickets, total_spent FROM user WHERE mobile_number = %s",
+            (clean_mobile,)
+        )
+        existing = cursor.fetchone()
+        now = now_ist()
+        cust_name = name.strip() if (name and str(name).strip() and str(name).strip() != "Customer") else "Customer"
+
+        if not existing:
+            cursor.execute("""
+                INSERT INTO user (
+                    name, mobile_number, user_pin, cashback, total_tickets, total_spent, status, created_at, updated_at
+                )
+                VALUES (%s, %s, '1234', %s, 1, %s, 'ACTIVE', %s, %s)
+            """, (
+                cust_name,
+                clean_mobile,
+                float(cashback or 0.0),
+                float(amount or 0.0),
+                now,
+                now,
+            ))
+            print(f"[NEW CUSTOMER REGISTERED]: {clean_mobile} ({cust_name})")
+        else:
+            cursor.execute("""
+                UPDATE user
+                SET cashback = cashback + %s,
+                    total_tickets = total_tickets + 1,
+                    total_spent = total_spent + %s,
+                    updated_at = %s
+                WHERE id = %s
+            """, (
+                float(cashback or 0.0),
+                float(amount or 0.0),
+                now,
+                existing["id"],
+            ))
+            print(f"[CUSTOMER UPDATED]: {clean_mobile}")
+    except Exception as err:
+        print("[CUSTOMER REGISTER/UPDATE ERROR]:", err)
+
+
 @app.get("/api/v1/payments")
 def get_payments():
     return payment_logs
@@ -223,11 +380,38 @@ BUS_ROUTES = {
 }
 
 
+def get_dynamic_cashback_rules():
+    default_cashback_pct = 10.0
+    min_spend_amount = 50.0
+    try:
+        conn = get_connection()
+        cursor = get_cursor(conn)
+        cursor.execute("SELECT setting_key, setting_value FROM system_settings")
+        rows = cursor.fetchall()
+        for r in rows:
+            if r["setting_key"] == "default_cashback_pct":
+                default_cashback_pct = float(r["setting_value"])
+            elif r["setting_key"] == "min_spend_amount":
+                min_spend_amount = float(r["setting_value"])
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print("[CASHBACK RULES ERROR]:", e)
+    return default_cashback_pct, min_spend_amount
+
+
 @app.post("/api/v1/payment/order")
-def create_order(payload: CreatePaymentRequest):
-    payment_id = f"PAY-{int(datetime.now().timestamp())}"
-    cashback = round(payload.amount * 0.10, 2)
-    discountAmount = payload.amount - cashback
+def create_payment(payload: CreatePaymentRequest):
+    cashback_pct, min_spend = get_dynamic_cashback_rules()
+    base_fare = payload.amount
+    cashback = 0.0
+
+    if base_fare >= min_spend:
+        cashback = round((base_fare * cashback_pct) / 100, 2)
+
+    discountAmount = max(0.0, base_fare - cashback)
+
+    payment_id = f"PAY-{int(time.time())}"
 
     order = razorpay_client.order.create({
         "amount": int(discountAmount * 100),
@@ -235,10 +419,29 @@ def create_order(payload: CreatePaymentRequest):
         "receipt": payment_id,
     })
 
-    route = BUS_ROUTES.get(payload.bus_id, {})
-    bus_no = route.get("bus_no", "")
-    origin = route.get("origin", "")
-    destination = route.get("destination", "")
+    # Fetch dynamic bus info from DB
+    bus_no = ""
+    origin = ""
+    destination = ""
+    try:
+        conn_bus = get_connection()
+        c_bus = get_cursor(conn_bus)
+        c_bus.execute("SELECT bus_number, origin_city, destination_city FROM buses WHERE bus_id = %s", (payload.bus_id,))
+        bus_row = c_bus.fetchone()
+        c_bus.close()
+        conn_bus.close()
+        if bus_row:
+            bus_no = bus_row["bus_number"]
+            origin = bus_row["origin_city"]
+            destination = bus_row["destination_city"]
+    except Exception as e:
+        print("[BUS LOOKUP ERROR]:", e)
+
+    if not bus_no:
+        route = BUS_ROUTES.get(payload.bus_id, {})
+        bus_no = route.get("bus_no", "")
+        origin = route.get("origin", "")
+        destination = route.get("destination", "")
 
     payment_logs[payment_id] = {
         "payment_id": payment_id,
@@ -334,7 +537,7 @@ def payment_success(payload: PaymentSuccessRequest):
     conn.commit()
 
     cursor.execute("""
-    SELECT origin, destination, amount, bus_id, id AS ticket_id, cashback
+    SELECT origin, destination, amount, bus_id, id AS ticket_id, cashback, phone_number
     FROM payments
     WHERE payment_id = %s
     """, (payload.payment_id,))
@@ -347,6 +550,18 @@ def payment_success(payload: PaymentSuccessRequest):
     bus_id = ticket["bus_id"] if ticket else ""
     ticket_id = ticket["ticket_id"] if ticket else payload.payment_id
     cashback = float(ticket["cashback"] or 0) if ticket else 0.0
+    phone_number = ticket.get("phone_number") if ticket else ""
+
+    # Auto-register / update unique customer record ONLY upon confirmed successful payment
+    if phone_number:
+        register_or_update_customer(
+            cursor=cursor,
+            mobile=phone_number,
+            name="Customer",
+            cashback=cashback,
+            amount=amount,
+        )
+        conn.commit()
 
     cursor.execute("SELECT token FROM push_token")
     rows = cursor.fetchall()
@@ -654,6 +869,15 @@ def monthly_pass_success(payload: dict):
         now_ist(),
     ))
 
+    # Auto-register / update unique customer record
+    register_or_update_customer(
+        cursor=cursor,
+        mobile=payload["mobile"],
+        name=payload.get("name") or "Customer",
+        cashback=0.0,
+        amount=1000.0,
+    )
+
     conn.commit()
     cursor.close()
     conn.close()
@@ -770,9 +994,10 @@ def use_monthly_pass(payload: dict):
         passenger_count,
         created_at,
         paid_at,
-        razorpay_payment_id
+        razorpay_payment_id,
+        phone_number
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (
         payment_id,
         payload["bus_id"],
@@ -785,8 +1010,19 @@ def use_monthly_pass(payload: dict):
         now_ist(),
         now_ist(),
         "monthly_pass",
+        payload["mobile"],
     ))
     last_insert_id = cursor.lastrowid
+
+    # Auto-register / update unique customer record
+    register_or_update_customer(
+        cursor=cursor,
+        mobile=payload["mobile"],
+        name=pass_row.get("name") or "Customer",
+        cashback=0.0,
+        amount=0.0,
+    )
+
     conn.commit()
 
     # Get updated rides
@@ -849,8 +1085,953 @@ def use_monthly_pass(payload: dict):
 
 
 @app.get("/api/v1/bus")
-def buses():
+def public_buses():
+    """
+    Public buses endpoint for Passenger WebApp & Conductor Mobile.
+    Fetches live active buses from MySQL database with fallback.
+    """
+    try:
+        conn = get_connection()
+        cursor = get_cursor(conn)
+        cursor.execute("SELECT * FROM buses WHERE status = 'ACTIVE'")
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        if rows:
+            buses_data = [
+                {
+                    "bus_no": r["bus_number"],
+                    "origin": r["origin_city"],
+                    "destination": r["destination_city"],
+                    "bus_id": r["bus_id"],
+                    "fare": float(r.get("fare_amount") or 50.0),
+                    "conductor": r.get("current_conductor_name", "Unassigned"),
+                }
+                for r in rows
+            ]
+            return {"buses": buses_data, "base_url": "https://bus.shreemateshwaribus.com/"}
+    except Exception as e:
+        print("[PUBLIC BUSES FETCH ERROR]:", e)
+
     return {"buses": list(BUS_ROUTES.values()), "base_url": "https://bus.shreemateshwaribus.com/"}
+
+
+# =========================================================================
+# --- ADMIN AUTHENTICATION ---
+# =========================================================================
+
+@app.post("/api/v1/admin/login")
+def admin_login(payload: AdminLoginRequest):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+
+    cursor.execute("""
+        SELECT * FROM admin_users
+        WHERE (username = %s OR email = %s)
+    """, (payload.username, payload.username))
+
+    user = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if not user or user["password"] != payload.password:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    # In production JWT token can be returned; for MVP return auth payload
+    return {
+        "success": True,
+        "token": f"admin-token-{user['id']}-{int(time.time())}",
+        "user": {
+            "id": user["id"],
+            "username": user["username"],
+            "full_name": user.get("full_name", "Bus Operator Admin"),
+            "role": user.get("role", "SUPER_ADMIN"),
+            "email": user.get("email", ""),
+        },
+    }
+
+
+@app.get("/api/v1/admin/me")
+def admin_me():
+    return {
+        "success": True,
+        "user": {
+            "username": "admin",
+            "full_name": "Bus Operator Admin",
+            "role": "SUPER_ADMIN",
+        }
+    }
+
+
+# =========================================================================
+# --- DYNAMIC SYSTEM SETTINGS (CASHBACK & MIN SPEND) ---
+# =========================================================================
+
+@app.get("/api/v1/admin/settings")
+def get_admin_settings():
+    conn = get_connection()
+    cursor = get_cursor(conn)
+
+    cursor.execute("SELECT setting_key, setting_value FROM system_settings")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    settings_dict = {
+        "default_cashback_pct": 10.0,
+        "min_spend_amount": 50.0,
+    }
+    for r in rows:
+        key = r["setting_key"]
+        val = r["setting_value"]
+        if key == "default_cashback_pct":
+            settings_dict["default_cashback_pct"] = float(val)
+        elif key == "min_spend_amount":
+            settings_dict["min_spend_amount"] = float(val)
+
+    return {"success": True, "settings": settings_dict}
+
+
+@app.post("/api/v1/admin/settings")
+def update_admin_settings(payload: SettingsUpdateRequest):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+    now = now_ist()
+
+    # Update default_cashback_pct
+    cursor.execute("""
+        INSERT INTO system_settings (setting_key, setting_value, description, updated_at)
+        VALUES ('default_cashback_pct', %s, 'Default Cashback Percentage (%)', %s)
+        ON DUPLICATE KEY UPDATE setting_value = %s, updated_at = %s
+    """, (str(payload.default_cashback_pct), now, str(payload.default_cashback_pct), now))
+
+    # Update min_spend_amount
+    cursor.execute("""
+        INSERT INTO system_settings (setting_key, setting_value, description, updated_at)
+        VALUES ('min_spend_amount', %s, 'Minimum Spend Threshold (₹)', %s)
+        ON DUPLICATE KEY UPDATE setting_value = %s, updated_at = %s
+    """, (str(payload.min_spend_amount), now, str(payload.min_spend_amount), now))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return {
+        "success": True,
+        "message": "System cashback settings updated successfully",
+        "settings": {
+            "default_cashback_pct": payload.default_cashback_pct,
+            "min_spend_amount": payload.min_spend_amount,
+        },
+    }
+
+
+# =========================================================================
+# --- DYNAMIC CITIES MANAGEMENT (Replacing Static Routes) ---
+# =========================================================================
+
+@app.get("/api/v1/cities")
+def get_cities():
+    conn = get_connection()
+    cursor = get_cursor(conn)
+    cursor.execute("SELECT * FROM cities ORDER BY name ASC")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/v1/cities")
+def create_city(payload: CityCreateRequest):
+    city_name = payload.name.strip()
+    if not city_name:
+        raise HTTPException(status_code=400, detail="City name is required")
+
+    conn = get_connection()
+    cursor = get_cursor(conn)
+
+    # Check existence
+    cursor.execute("SELECT id FROM cities WHERE name = %s", (city_name,))
+    if cursor.fetchone():
+        cursor.close()
+        conn.close()
+        raise HTTPException(status_code=400, detail=f"City '{city_name}' already exists")
+
+    cursor.execute("""
+        INSERT INTO cities (name, state, status, created_at)
+        VALUES (%s, %s, 'ACTIVE', %s)
+    """, (city_name, payload.state, now_ist()))
+
+    new_id = cursor.lastrowid
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return {
+        "success": True,
+        "message": f"City '{city_name}' added successfully",
+        "city": {
+            "id": new_id,
+            "name": city_name,
+            "state": payload.state,
+            "status": "ACTIVE",
+        },
+    }
+
+
+@app.put("/api/v1/cities/{city_id}")
+def update_city(city_id: int, payload: CityUpdateRequest):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+
+    cursor.execute("""
+        UPDATE cities
+        SET name = %s, state = %s, status = %s
+        WHERE id = %s
+    """, (payload.name.strip(), payload.state, payload.status, city_id))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return {"success": True, "message": "City updated successfully"}
+
+
+@app.delete("/api/v1/cities/{city_id}")
+def delete_city(city_id: int):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+    cursor.execute("DELETE FROM cities WHERE id = %s", (city_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return {"success": True, "message": "City deleted successfully"}
+
+
+# =========================================================================
+# --- DYNAMIC CONDUCTORS MANAGEMENT ---
+# =========================================================================
+
+@app.get("/api/v1/conductors")
+def get_conductors():
+    conn = get_connection()
+    cursor = get_cursor(conn)
+    cursor.execute("SELECT * FROM conductors ORDER BY id DESC")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/v1/conductors")
+def create_conductor(payload: ConductorCreateRequest):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+
+    cursor.execute("SELECT id FROM conductors WHERE mobile = %s", (payload.mobile,))
+    if cursor.fetchone():
+        cursor.close()
+        conn.close()
+        raise HTTPException(status_code=400, detail="Mobile number already registered for another conductor")
+
+    cursor.execute("SELECT COUNT(*) AS total FROM conductors")
+    total_count = cursor.fetchone()["total"]
+    conductor_id = f"COND-{str(total_count + 1).zfill(2)}"
+
+    cursor.execute("""
+        INSERT INTO conductors (
+            conductor_id, name, mobile, email, password, gender, status, assigned_bus_id, created_at, updated_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, 'ACTIVE', %s, %s, %s)
+    """, (
+        conductor_id,
+        payload.name,
+        payload.mobile,
+        payload.email or "",
+        payload.password,
+        payload.gender or "Male",
+        payload.assigned_bus_id,
+        now_ist(),
+        now_ist(),
+    ))
+
+    new_id = cursor.lastrowid
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return {
+        "success": True,
+        "message": "Conductor added successfully",
+        "conductor": {
+            "id": new_id,
+            "conductor_id": conductor_id,
+            "name": payload.name,
+            "mobile": payload.mobile,
+            "email": payload.email,
+            "gender": payload.gender,
+            "status": "ACTIVE",
+            "assigned_bus_id": payload.assigned_bus_id,
+        }
+    }
+
+
+@app.put("/api/v1/conductors/{conductor_id}")
+def update_conductor(conductor_id: str, payload: ConductorUpdateRequest):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+
+    is_num = str(conductor_id).isdigit()
+    where_sql = "WHERE conductor_id = %s OR id = %s" if is_num else "WHERE conductor_id = %s"
+    target_args = (str(conductor_id), int(conductor_id)) if is_num else (str(conductor_id),)
+
+    if payload.password:
+        update_query = f"""
+            UPDATE conductors
+            SET name = %s, mobile = %s, email = %s, password = %s, gender = %s, assigned_bus_id = %s, status = %s, updated_at = %s
+            {where_sql}
+        """
+        params = (
+            payload.name, payload.mobile, payload.email or "", payload.password,
+            payload.gender or "Male", payload.assigned_bus_id or None, payload.status or "ACTIVE",
+            now_ist(), *target_args
+        )
+    else:
+        update_query = f"""
+            UPDATE conductors
+            SET name = %s, mobile = %s, email = %s, gender = %s, assigned_bus_id = %s, status = %s, updated_at = %s
+            {where_sql}
+        """
+        params = (
+            payload.name, payload.mobile, payload.email or "",
+            payload.gender or "Male", payload.assigned_bus_id or None, payload.status or "ACTIVE",
+            now_ist(), *target_args
+        )
+
+    cursor.execute(update_query, params)
+
+    # Sync bus assignments if assigned_bus_id provided
+    if payload.assigned_bus_id:
+        cursor.execute("UPDATE buses SET current_conductor_id = NULL, current_conductor_name = 'Unassigned' WHERE current_conductor_id = %s AND bus_id != %s", (conductor_id, payload.assigned_bus_id))
+        cursor.execute("UPDATE conductors SET assigned_bus_id = NULL WHERE assigned_bus_id = %s AND conductor_id != %s", (payload.assigned_bus_id, conductor_id))
+        cursor.execute("UPDATE buses SET current_conductor_id = %s, current_conductor_name = %s WHERE bus_id = %s", (conductor_id, payload.name, payload.assigned_bus_id))
+    else:
+        cursor.execute("UPDATE buses SET current_conductor_id = NULL, current_conductor_name = 'Unassigned' WHERE current_conductor_id = %s", (conductor_id,))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return {"success": True, "message": "Conductor updated successfully"}
+
+
+@app.delete("/api/v1/conductors/{conductor_id}")
+def delete_conductor(conductor_id: str):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+
+    is_num = str(conductor_id).isdigit()
+    where_sql = "WHERE conductor_id = %s OR id = %s" if is_num else "WHERE conductor_id = %s"
+    target_args = (str(conductor_id), int(conductor_id)) if is_num else (str(conductor_id),)
+
+    cursor.execute(f"DELETE FROM conductors {where_sql}", target_args)
+    cursor.execute("UPDATE buses SET current_conductor_id = NULL, current_conductor_name = 'Unassigned' WHERE current_conductor_id = %s", (conductor_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return {"success": True, "message": "Conductor deleted successfully"}
+
+
+# =========================================================================
+# --- DYNAMIC BUSES MANAGEMENT ---
+# =========================================================================
+
+@app.get("/api/v1/buses")
+def get_all_buses():
+    conn = get_connection()
+    cursor = get_cursor(conn)
+    cursor.execute("""
+        SELECT b.*, c.name AS conductor_name, c.mobile AS conductor_mobile
+        FROM buses b
+        LEFT JOIN conductors c ON b.current_conductor_id = c.conductor_id
+        ORDER BY b.id DESC
+    """)
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    formatted = []
+    for r in rows:
+        c_name = r.get("conductor_name") or r.get("current_conductor_name") or "Unassigned"
+        formatted.append({
+            "id": r["bus_id"],
+            "bus_id": r["bus_id"],
+            "bus_number": r["bus_number"],
+            "origin_city": r["origin_city"],
+            "destination_city": r["destination_city"],
+            "route": f"{r['origin_city']} ➔ {r['destination_city']}",
+            "current_conductor_id": r.get("current_conductor_id"),
+            "currentConductor": c_name,
+            "conductor_name": c_name,
+            "conductor_mobile": r.get("conductor_mobile", ""),
+            "fare_amount": float(r.get("fare_amount") or 50.0),
+            "status": r.get("status", "ACTIVE"),
+            "created_at": r.get("created_at", ""),
+        })
+
+    return formatted
+
+
+@app.post("/api/v1/buses")
+def create_bus(payload: BusCreateRequest):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+
+    bus_id = payload.bus_id.strip().upper()
+
+    cursor.execute("SELECT id FROM buses WHERE bus_id = %s", (bus_id,))
+    if cursor.fetchone():
+        cursor.close()
+        conn.close()
+        raise HTTPException(status_code=400, detail=f"Bus ID '{bus_id}' already exists")
+
+    conductor_name = "Unassigned"
+    if payload.current_conductor_id:
+        cursor.execute("SELECT name FROM conductors WHERE conductor_id = %s", (payload.current_conductor_id,))
+        cond_row = cursor.fetchone()
+        if cond_row:
+            conductor_name = cond_row["name"]
+
+    cursor.execute("""
+        INSERT INTO buses (
+            bus_id, bus_number, origin_city, destination_city, current_conductor_id, current_conductor_name, fare_amount, status, created_at, updated_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (
+        bus_id,
+        payload.bus_number.strip().upper(),
+        payload.origin_city.strip(),
+        payload.destination_city.strip(),
+        payload.current_conductor_id,
+        conductor_name,
+        payload.fare_amount or 50.0,
+        payload.status or "ACTIVE",
+        now_ist(),
+        now_ist(),
+    ))
+
+    # If conductor assigned, clear previous assignments and update
+    if payload.current_conductor_id:
+        cursor.execute("UPDATE buses SET current_conductor_id = NULL, current_conductor_name = 'Unassigned' WHERE current_conductor_id = %s AND bus_id != %s", (payload.current_conductor_id, bus_id))
+        cursor.execute("UPDATE conductors SET assigned_bus_id = NULL WHERE assigned_bus_id = %s AND conductor_id != %s", (bus_id, payload.current_conductor_id))
+        cursor.execute("UPDATE conductors SET assigned_bus_id = %s WHERE conductor_id = %s", (bus_id, payload.current_conductor_id))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return {
+        "success": True,
+        "message": f"Bus {bus_id} created successfully",
+        "bus": {
+            "id": bus_id,
+            "bus_id": bus_id,
+            "bus_number": payload.bus_number,
+            "origin_city": payload.origin_city,
+            "destination_city": payload.destination_city,
+            "route": f"{payload.origin_city} ➔ {payload.destination_city}",
+            "current_conductor_id": payload.current_conductor_id,
+            "currentConductor": conductor_name,
+            "fare_amount": payload.fare_amount or 50.0,
+            "status": payload.status or "ACTIVE",
+        }
+    }
+
+
+@app.put("/api/v1/buses/{bus_id}")
+def update_bus(bus_id: str, payload: BusUpdateRequest):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+
+    conductor_name = "Unassigned"
+    if payload.current_conductor_id:
+        cursor.execute("SELECT name FROM conductors WHERE conductor_id = %s", (payload.current_conductor_id,))
+        cond_row = cursor.fetchone()
+        if cond_row:
+            conductor_name = cond_row["name"]
+
+    cursor.execute("""
+        UPDATE buses
+        SET bus_number = %s, origin_city = %s, destination_city = %s, current_conductor_id = %s, current_conductor_name = %s, fare_amount = %s, status = %s, updated_at = %s
+        WHERE bus_id = %s
+    """, (
+        payload.bus_number.strip().upper(),
+        payload.origin_city.strip(),
+        payload.destination_city.strip(),
+        payload.current_conductor_id,
+        conductor_name,
+        payload.fare_amount or 50.0,
+        payload.status or "ACTIVE",
+        now_ist(),
+        bus_id,
+    ))
+
+    if payload.current_conductor_id:
+        cursor.execute("UPDATE buses SET current_conductor_id = NULL, current_conductor_name = 'Unassigned' WHERE current_conductor_id = %s AND bus_id != %s", (payload.current_conductor_id, bus_id))
+        cursor.execute("UPDATE conductors SET assigned_bus_id = NULL WHERE assigned_bus_id = %s AND conductor_id != %s", (bus_id, payload.current_conductor_id))
+        cursor.execute("UPDATE conductors SET assigned_bus_id = %s WHERE conductor_id = %s", (bus_id, payload.current_conductor_id))
+    else:
+        cursor.execute("UPDATE conductors SET assigned_bus_id = NULL WHERE assigned_bus_id = %s", (bus_id,))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return {"success": True, "message": f"Bus {bus_id} updated successfully"}
+
+
+@app.delete("/api/v1/buses/{bus_id}")
+def delete_bus(bus_id: str):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+    cursor.execute("DELETE FROM buses WHERE bus_id = %s", (bus_id,))
+    cursor.execute("UPDATE conductors SET assigned_bus_id = NULL WHERE assigned_bus_id = %s", (bus_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return {"success": True, "message": f"Bus {bus_id} deleted successfully"}
+
+
+@app.post("/api/v1/buses/{bus_id}/reassign")
+def reassign_bus_conductor(bus_id: str, payload: BusReassignRequest):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+
+    cursor.execute("SELECT * FROM buses WHERE bus_id = %s", (bus_id,))
+    bus = cursor.fetchone()
+    if not bus:
+        cursor.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Bus not found")
+
+    conductor_name = "Unassigned"
+    if payload.conductor_id:
+        cursor.execute("SELECT name FROM conductors WHERE conductor_id = %s", (payload.conductor_id,))
+        cond_row = cursor.fetchone()
+        if cond_row:
+            conductor_name = cond_row["name"]
+
+    # Clear previous assignments for this conductor and this bus to enforce 1-to-1
+    if payload.conductor_id:
+        cursor.execute("UPDATE buses SET current_conductor_id = NULL, current_conductor_name = 'Unassigned' WHERE current_conductor_id = %s AND bus_id != %s", (payload.conductor_id, bus_id))
+        cursor.execute("UPDATE conductors SET assigned_bus_id = NULL WHERE assigned_bus_id = %s AND conductor_id != %s", (bus_id, payload.conductor_id))
+        cursor.execute("UPDATE conductors SET assigned_bus_id = %s WHERE conductor_id = %s", (bus_id, payload.conductor_id))
+    else:
+        cursor.execute("UPDATE conductors SET assigned_bus_id = NULL WHERE assigned_bus_id = %s", (bus_id,))
+
+    # Update bus
+    cursor.execute("""
+        UPDATE buses
+        SET current_conductor_id = %s, current_conductor_name = %s, status = 'ACTIVE', updated_at = %s
+        WHERE bus_id = %s
+    """, (payload.conductor_id, conductor_name, now_ist(), bus_id))
+
+    # Create shift log entry
+    shift_id = f"SHIFT-{int(time.time())}"
+    today_date = datetime.now(IST).strftime("%Y-%m-%d")
+    cursor.execute("""
+        INSERT INTO conductor_shift_logs (
+            shift_id, bus_id, bus_number, conductor_id, conductor_name, shift_date, start_time, status, created_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, 'ACTIVE', %s)
+    """, (
+        shift_id,
+        bus_id,
+        bus["bus_number"],
+        payload.conductor_id,
+        conductor_name,
+        today_date,
+        now_ist(),
+        now_ist(),
+    ))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return {
+        "success": True,
+        "message": f"Conductor {conductor_name} assigned to {bus_id}",
+        "shift_id": shift_id,
+    }
+
+
+# =========================================================================
+# --- CONDUCTOR SHIFT AUDIT LOGS ---
+# =========================================================================
+
+@app.get("/api/v1/conductor/shift-logs")
+def get_shift_logs(bus_id: Optional[str] = None, conductor_id: Optional[str] = None, date: Optional[str] = None):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+
+    query = "SELECT * FROM conductor_shift_logs WHERE 1=1"
+    params = []
+
+    if bus_id:
+        query += " AND bus_id = %s"
+        params.append(bus_id)
+    if conductor_id:
+        query += " AND conductor_id = %s"
+        params.append(conductor_id)
+    if date:
+        query += " AND (shift_date = %s OR start_time LIKE CONCAT(%s, '%%'))"
+        params.extend([date, date])
+
+    query += " ORDER BY id DESC LIMIT 100"
+
+    cursor.execute(query, tuple(params))
+    rows = cursor.fetchall()
+
+    # Dynamic calculation of total revenue & tickets for active/recent shifts
+    logs_data = []
+    for r in rows:
+        item = dict(r)
+        item["collection_amount"] = float(item.get("collection_amount") or 0.0)
+        item["tickets_count"] = int(item.get("tickets_count") or 0)
+        logs_data.append(item)
+
+    cursor.close()
+    conn.close()
+
+    return logs_data
+
+
+@app.post("/api/v1/conductor/shift-logs")
+def create_shift_log(payload: ShiftLogCreateRequest):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+
+    # Lookup bus & conductor names
+    cursor.execute("SELECT bus_number FROM buses WHERE bus_id = %s", (payload.bus_id,))
+    b_row = cursor.fetchone()
+    bus_number = b_row["bus_number"] if b_row else payload.bus_id
+
+    cursor.execute("SELECT name FROM conductors WHERE conductor_id = %s", (payload.conductor_id,))
+    c_row = cursor.fetchone()
+    conductor_name = c_row["name"] if c_row else payload.conductor_id
+
+    shift_id = f"SHIFT-{int(time.time())}"
+    shift_date = payload.shift_date or datetime.now(IST).strftime("%Y-%m-%d")
+
+    cursor.execute("""
+        INSERT INTO conductor_shift_logs (
+            shift_id, bus_id, bus_number, conductor_id, conductor_name, shift_date, start_time, end_time, collection_amount, tickets_count, status, created_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (
+        shift_id,
+        payload.bus_id,
+        bus_number,
+        payload.conductor_id,
+        conductor_name,
+        shift_date,
+        payload.start_time or now_ist(),
+        payload.end_time,
+        payload.collection_amount or 0.0,
+        payload.tickets_count or 0,
+        payload.status or "COMPLETED",
+        now_ist(),
+    ))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return {"success": True, "message": "Shift audit log recorded successfully", "shift_id": shift_id}
+
+
+# =========================================================================
+# --- ALL TICKETS (ADMIN VIEW WITH FILTERS) ---
+# =========================================================================
+
+@app.get("/api/v1/admin/tickets")
+def get_admin_tickets(
+    bus_id: Optional[str] = None,
+    date: Optional[str] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = 150,
+    offset: int = 0
+):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+
+    query = "SELECT * FROM payments WHERE 1=1"
+    count_query = "SELECT COUNT(*) AS total_count, COALESCE(SUM(amount), 0) AS total_revenue, COALESCE(SUM(cashback), 0) AS total_cashback FROM payments WHERE 1=1"
+    params = []
+
+    if bus_id and bus_id != "ALL":
+        query += " AND bus_id = %s"
+        count_query += " AND bus_id = %s"
+        params.append(bus_id)
+
+    if status and status != "ALL":
+        query += " AND status = %s"
+        count_query += " AND status = %s"
+        params.append(status)
+
+    if date:
+        query += " AND (created_at LIKE CONCAT(%s, '%%') OR paid_at LIKE CONCAT(%s, '%%'))"
+        count_query += " AND (created_at LIKE CONCAT(%s, '%%') OR paid_at LIKE CONCAT(%s, '%%'))"
+        params.extend([date, date])
+
+    if search:
+        search_pattern = f"%{search}%"
+        query += " AND (payment_id LIKE %s OR phone_number LIKE %s OR razorpay_payment_id LIKE %s OR origin LIKE %s OR destination LIKE %s)"
+        count_query += " AND (payment_id LIKE %s OR phone_number LIKE %s OR razorpay_payment_id LIKE %s OR origin LIKE %s OR destination LIKE %s)"
+        params.extend([search_pattern, search_pattern, search_pattern, search_pattern, search_pattern])
+
+    # Run summary stats
+    cursor.execute(count_query, tuple(params))
+    summary = cursor.fetchone()
+
+    # Query paginated rows
+    query += " ORDER BY id DESC LIMIT %s OFFSET %s"
+    params.extend([limit, offset])
+
+    cursor.execute(query, tuple(params))
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    tickets_list = []
+    for r in rows:
+        item = dict(r)
+        item["amount"] = float(item.get("amount") or 0.0)
+        item["cashback"] = float(item.get("cashback") or 0.0)
+        item["passenger_count"] = int(item.get("passenger_count") or 1)
+        tickets_list.append(item)
+
+    return {
+        "success": True,
+        "total": summary["total_count"] if summary else len(tickets_list),
+        "total_revenue": float(summary["total_revenue"] if summary else 0.0),
+        "total_cashback": float(summary["total_cashback"] if summary else 0.0),
+        "tickets": tickets_list,
+    }
+
+
+# =========================================================================
+# --- ADMIN MONTHLY PASSES ---
+# =========================================================================
+
+@app.get("/api/v1/admin/monthly-passes")
+def get_admin_monthly_passes(status: Optional[str] = None, search: Optional[str] = None):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+
+    query = "SELECT * FROM monthly_passes WHERE 1=1"
+    params = []
+
+    if status and status != "ALL":
+        query += " AND status = %s"
+        params.append(status)
+
+    if search:
+        search_pat = f"%{search}%"
+        query += " AND (name LIKE %s OR mobile LIKE %s OR pass_id LIKE %s OR bus_id LIKE %s)"
+        params.extend([search_pat, search_pat, search_pat, search_pat])
+
+    query += " ORDER BY id DESC"
+
+    cursor.execute(query, tuple(params))
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    passes = []
+    for r in rows:
+        item = dict(r)
+        item["amount"] = float(item.get("amount") or 1000.0)
+        item["total_rides"] = int(item.get("total_rides") or 62)
+        item["used_rides"] = int(item.get("used_rides") or 0)
+        item["remaining_rides"] = int(item.get("remaining_rides") or 62)
+        passes.append(item)
+
+    return passes
+
+
+@app.post("/api/v1/admin/monthly-passes")
+def create_admin_monthly_pass(payload: AdminPassCreateRequest):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+
+    pass_id = f"PASS-{int(time.time())}"
+    pin = payload.pin or str(random.randint(1000, 9999))
+    amount = payload.amount or 1000.0
+    rides = payload.total_rides or 62
+    origin = payload.origin_city or "Bari Sadri"
+    dest = payload.destination_city or "Udaipur"
+    route_str = payload.route or f"{origin} ➔ {dest}"
+
+    # Check if active pass exists for mobile
+    cursor.execute("SELECT id FROM monthly_passes WHERE mobile = %s AND status = 'ACTIVE'", (payload.mobile,))
+    existing = cursor.fetchone()
+    if existing:
+        # Update existing
+        cursor.execute("""
+            UPDATE monthly_passes
+            SET total_rides = total_rides + %s, remaining_rides = remaining_rides + %s, amount = amount + %s, pin = %s,
+                origin_city = %s, destination_city = %s, route = %s
+            WHERE id = %s
+        """, (rides, rides, amount, pin, origin, dest, route_str, existing["id"]))
+    else:
+        # Create new
+        cursor.execute("""
+            INSERT INTO monthly_passes (
+                pass_id, bus_id, origin_city, destination_city, route, name, mobile, pin, amount, total_rides, used_rides, remaining_rides, status, created_at
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, %s, 'ACTIVE', %s)
+        """, (
+            pass_id,
+            payload.bus_id or "ROUTE-PASS",
+            origin,
+            dest,
+            route_str,
+            payload.name,
+            payload.mobile,
+            pin,
+            amount,
+            rides,
+            rides,
+            now_ist(),
+        ))
+
+    # Auto-register / update customer in user table
+    register_or_update_customer(
+        cursor=cursor,
+        mobile=payload.mobile,
+        name=payload.name or "Customer",
+        cashback=0.0,
+        amount=amount,
+    )
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return {
+        "success": True,
+        "message": f"Monthly Pass {pass_id} created successfully for {payload.name} ({route_str})",
+        "pass": {
+            "pass_id": pass_id,
+            "name": payload.name,
+            "mobile": payload.mobile,
+            "origin_city": origin,
+            "destination_city": dest,
+            "route": route_str,
+        }
+    }
+
+
+@app.put("/api/v1/admin/monthly-passes/{pass_id}")
+def update_admin_monthly_pass(pass_id: str, payload: AdminPassUpdateRequest):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+
+    origin = payload.origin_city or "Bari Sadri"
+    dest = payload.destination_city or "Udaipur"
+    route_str = payload.route or f"{origin} ➔ {dest}"
+
+    is_num = str(pass_id).isdigit()
+    where_sql = "WHERE pass_id = %s OR id = %s" if is_num else "WHERE pass_id = %s"
+    target_args = (str(pass_id), int(pass_id)) if is_num else (str(pass_id),)
+
+    cursor.execute(f"SELECT * FROM monthly_passes {where_sql}", target_args)
+    existing = cursor.fetchone()
+    if not existing:
+        cursor.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Monthly pass not found")
+
+    total_rides = payload.total_rides if payload.total_rides is not None else existing.get("total_rides", 62)
+    used_rides = payload.used_rides if payload.used_rides is not None else existing.get("used_rides", 0)
+    remaining_rides = payload.remaining_rides if payload.remaining_rides is not None else (total_rides - used_rides)
+    pin = payload.pin if payload.pin else existing.get("pin", "1234")
+    amount = payload.amount if payload.amount is not None else existing.get("amount", 1000.0)
+    status = payload.status or existing.get("status", "ACTIVE")
+
+    update_query = f"""
+        UPDATE monthly_passes
+        SET name = %s, mobile = %s, origin_city = %s, destination_city = %s, route = %s,
+            amount = %s, total_rides = %s, used_rides = %s, remaining_rides = %s, pin = %s, status = %s
+        {where_sql}
+    """
+    params = (
+        payload.name, payload.mobile, origin, dest, route_str,
+        amount, total_rides, used_rides, remaining_rides, pin, status,
+        *target_args
+    )
+    cursor.execute(update_query, params)
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return {"success": True, "message": "Monthly Pass updated successfully"}
+
+
+@app.delete("/api/v1/admin/monthly-passes/{pass_id}")
+def delete_admin_monthly_pass(pass_id: str):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+
+    is_num = str(pass_id).isdigit()
+    where_sql = "WHERE pass_id = %s OR id = %s" if is_num else "WHERE pass_id = %s"
+    target_args = (str(pass_id), int(pass_id)) if is_num else (str(pass_id),)
+
+    cursor.execute(f"DELETE FROM monthly_passes {where_sql}", target_args)
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return {"success": True, "message": "Monthly Pass deleted successfully"}
+
+
+# =========================================================================
+# --- ADMIN CUSTOMERS DIRECTORY ---
+# =========================================================================
+
+@app.get("/api/v1/admin/customers")
+def get_admin_customers(search: Optional[str] = None):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+    query = "SELECT * FROM user WHERE 1=1"
+    params = []
+    if search:
+        pat = f"%{search}%"
+        query += " AND (name LIKE %s OR mobile_number LIKE %s)"
+        params.extend([pat, pat])
+    query += " ORDER BY id DESC"
+    cursor.execute(query, tuple(params))
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return [
+        {
+            "id": r["id"],
+            "name": r.get("name") or "Customer",
+            "mobile_number": r["mobile_number"],
+            "user_pin": r.get("user_pin") or "1234",
+            "cashback": float(r.get("cashback") or 0.0),
+            "total_tickets": int(r.get("total_tickets") or 0),
+            "total_spent": float(r.get("total_spent") or 0.0),
+            "status": r.get("status") or "ACTIVE",
+            "created_at": r.get("created_at"),
+            "updated_at": r.get("updated_at"),
+        }
+        for r in rows
+    ]
 
 
 if __name__ == "__main__":

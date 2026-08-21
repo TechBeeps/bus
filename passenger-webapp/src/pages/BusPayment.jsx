@@ -9,158 +9,163 @@ export default function BusPayment() {
   const navigate = useNavigate();
   const [amount, setAmount] = useState("");
   const [mobile, setMobile] = useState("");
-//const [passengerName, setPassengerName] = useState("");
+  const [paying, setPaying] = useState(false);
+  const [usingPass, setUsingPass] = useState(false);
 
-const [tab, setTab] = useState("one-time");
-const [pin, setPin] = useState("");
+  const [tab, setTab] = useState("one-time");
+  const [pin, setPin] = useState("");
 
-const validateMobile = () => {
-  const mobileRegex = /^[6-9]\d{9}$/;
+  const validateMobile = () => {
+    const mobileRegex = /^[6-9]\d{9}$/;
 
-  if (!mobile) {
-    alert("Please enter mobile number");
-    return false;
-  }
+    if (!mobile) {
+      alert("Please enter mobile number");
+      return false;
+    }
 
-  if (!mobileRegex.test(mobile)) {
-    alert("Please enter a valid 10-digit mobile number");
-    return false;
-  }
+    if (!mobileRegex.test(mobile)) {
+      alert("Please enter a valid 10-digit mobile number");
+      return false;
+    }
 
-  return true;
-};
+    return true;
+  };
 
+  // handle one-time payment with multi-click prevention
+  const handlePay = async () => {
+    if (paying) return;
 
-//handle one-time payment
-const handlePay = async () => {
+    if (!validateMobile()) {
+      return;
+    }
 
-  if (!validateMobile()) {
-    return;
-  }
+    if (!amount || Number(amount) <= 0) {
+      alert("Please enter a valid fare amount");
+      return;
+    }
 
-  try {
-    
-    const response = await axios.post(
-      `${config.API_URL}/payment/order`,
-      {
-        bus_id: busId,
-        amount: Number(amount),
-        mobile: mobile,
-      }
-    );
+    setPaying(true);
 
-    const data = response.data;
+    try {
+      const response = await axios.post(
+        `${config.API_URL}/payment/order`,
+        {
+          bus_id: busId,
+          amount: Number(amount),
+          mobile: mobile,
+        }
+      );
 
-    const options = {
-      key: data.key,
-      amount: Number(amount) * 100,
-      currency: "INR",
-      name: "Bus Ticket",
-      description: "Bus Fare",
+      const data = response.data;
 
-      order_id: data.razorpay_order_id,
+      const options = {
+        key: data.key,
+        amount: Number(amount) * 100,
+        currency: "INR",
+        name: "Bus Ticket",
+        description: "Bus Fare",
+        order_id: data.razorpay_order_id,
 
-      handler: async function (response) {
-    
-        
-        await axios.post(
-          `${config.API_URL}/payment/success`,
-          {
-            payment_id: data.payment_id,
-            razorpay_payment_id:
-              response.razorpay_payment_id
-          }
-        );
-
-        //alert("Payment Successful");
-         navigate(`/ticket/${data.payment_id}`);
-      },
-
-      modal: {
-        ondismiss: async function () {
-
+        handler: async function (response) {
+          try {
             await axios.post(
+              `${config.API_URL}/payment/success`,
+              {
+                payment_id: data.payment_id,
+                razorpay_payment_id: response.razorpay_payment_id
+              }
+            );
+          } catch (e) {
+            console.error("Payment success recording error:", e);
+          }
+          navigate(`/ticket/${data.payment_id}`);
+        },
+
+        modal: {
+          ondismiss: async function () {
+            setPaying(false);
+            try {
+              await axios.post(
+                `${config.API_URL}/payment/update-status`,
+                {
+                  payment_id: data.payment_id,
+                  status: "CANCELLED"
+                }
+              );
+            } catch (e) {}
+            navigate(`/ticket/${data.payment_id}`);
+          }
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+
+      rzp.on("payment.failed", async function (response) {
+        console.log("PAYMENT FAILED", response);
+        setPaying(false);
+        try {
+          await axios.post(
             `${config.API_URL}/payment/update-status`,
             {
-                payment_id: data.payment_id,
-                status: "CANCELLED"
+              payment_id: data.payment_id,
+              status: "FAILED",
             }
-            );
-
-            //alert("Payment Cancelled");
-            navigate(`/ticket/${data.payment_id}`);
+          );
+        } catch (error) {
+          console.error("Failed status update:", error);
         }
+        navigate(`/ticket/${data.payment_id}`);
+      });
+
+      rzp.open();
+
+    } catch (error) {
+      console.error(error);
+      alert("Unable to create payment. Please try again.");
+      setPaying(false);
     }
-    };
+  };
 
-    const rzp = new window.Razorpay(options);
+  // handle monthly pass usage with multi-click prevention
+  const handleMonthlyPass = async () => {
+    if (usingPass) return;
 
-    rzp.on("payment.failed", async function (response) {
-      console.log("PAYMENT FAILED", response);
-
-      try {
-        await axios.post(
-          `${config.API_URL}/payment/update-status`,
-          {
-            payment_id: data.payment_id,
-            status: "FAILED",
-          }
-        );
-      } catch (error) {
-        console.error("Failed status update:", error);
-      }
-
-      //alert("Payment Failed");
-      navigate(`/ticket/${data.payment_id}`);
-    });
-
-
-    rzp.open();
-
-  } catch (error) {
-    console.error(error);
-    alert("Unable to create payment");
-  }
-};
-
-//handle monthly pass usage
-const handleMonthlyPass = async () => {
-  if (!validateMobile()) {
-    return;
-  }
-
-  try {
-
-    const response = await axios.post(
-      `${config.API_URL}/monthly-pass/use`,
-      {
-        bus_id: busId,
-        mobile,
-        pin
-      }
-    );
-
-    const data = response.data;
-
-    if (data.success) {
-
-      // alert(
-      //   `Ride Booked Successfully\nRemaining Rides: ${data.remaining_rides}`
-      // );
-      navigate(`/ticket/${data.payment_id}`);
-      
-
-    } else {
-
-      alert(data.message);
-
+    if (!validateMobile()) {
+      return;
     }
 
-  } catch (error) {
-    console.error(error);
-    alert("Unable to verify monthly pass");
-  }
-};
+    if (!pin) {
+      alert("Please enter your 4-digit PIN");
+      return;
+    }
+
+    setUsingPass(true);
+
+    try {
+      const response = await axios.post(
+        `${config.API_URL}/monthly-pass/use`,
+        {
+          bus_id: busId,
+          mobile,
+          pin
+        }
+      );
+
+      const data = response.data;
+
+      if (data.success) {
+        navigate(`/ticket/${data.payment_id}`);
+      } else {
+        alert(data.message || "Unable to use monthly pass");
+        setUsingPass(false);
+      }
+
+    } catch (error) {
+      console.error(error);
+      alert("Unable to verify monthly pass");
+      setUsingPass(false);
+    }
+  };
 
 const buses = [
   {
@@ -303,13 +308,22 @@ const currentBus =
 
 
             <button
+              type="button"
+              disabled={paying}
               onClick={handlePay}
-              className="w-full rounded-3xl bg-indigo-600 px-6 py-3.5 text-sm font-semibold text-white"
+              className={`w-full rounded-3xl py-3.5 text-sm font-semibold text-white transition-all flex items-center justify-center ${
+                paying ? "bg-indigo-400 cursor-not-allowed opacity-80" : "bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] cursor-pointer"
+              }`}
             >
-              Pay Now
+              {paying ? (
+                <span className="flex items-center space-x-2">
+                  <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                  <span>Processing Payment...</span>
+                </span>
+              ) : (
+                <span>Pay Now</span>
+              )}
             </button>
-            
-            
           </>
       )}
 
@@ -338,10 +352,22 @@ const currentBus =
               />
             </div>
 
-            <button onClick={handleMonthlyPass}
-              className="w-full rounded-3xl bg-green-600 py-3 text-white"
+            <button
+              type="button"
+              disabled={usingPass}
+              onClick={handleMonthlyPass}
+              className={`w-full rounded-3xl py-3 text-white transition-all flex items-center justify-center ${
+                usingPass ? "bg-green-400 cursor-not-allowed opacity-80" : "bg-green-600 hover:bg-green-700 active:scale-[0.98] cursor-pointer"
+              }`}
             >
-              Use Monthly Pass
+              {usingPass ? (
+                <span className="flex items-center space-x-2">
+                  <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                  <span>Verifying Pass...</span>
+                </span>
+              ) : (
+                <span>Use Monthly Pass</span>
+              )}
             </button>
 
             <button

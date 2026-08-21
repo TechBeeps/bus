@@ -1,473 +1,565 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-import Buses from './pages/Buses';
-import Conductors from './pages/Conductors';
-import RoutesPage from './pages/Routes';
+import React, { useState, useEffect } from 'react';
 import {
   Bus,
   Users,
   Gift,
   Clock,
-  ShieldAlert,
   ArrowRightLeft,
   Percent,
-  Sparkles,
   Save,
   CheckCircle,
+  LogOut,
+  MapPin,
+  Ticket,
+  CreditCard,
+  LayoutDashboard,
+  IndianRupee,
+  ShieldCheck,
+  TrendingUp,
+  Activity,
 } from 'lucide-react';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+import Login from './components/Login';
+import Buses from './pages/Buses';
+import Conductors from './pages/Conductors';
+import Cities from './pages/Cities';
+import ShiftAuditLogs from './pages/ShiftAuditLogs';
+import TicketsList from './pages/TicketsList';
+import MonthlyPasses from './pages/MonthlyPasses';
+
+import {
+  getSystemSettings,
+  updateSystemSettings,
+  getBuses,
+  getConductors,
+  getAdminTickets,
+  getAdminMonthlyPasses,
+  getShiftLogs,
+} from './services/api';
+import { useToast } from './contexts/ToastContext';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState('conductors');
-  const [buses, setBuses] = useState([
-    { id: 'BUS-101', route: 'Central Stand ➔ Tech Park', currentConductor: 'Rajesh Kumar', status: 'ACTIVE' },
-    { id: 'BUS-102', route: 'Market Stand ➔ City Hospital', currentConductor: 'Suresh Verma', status: 'ACTIVE' },
-    { id: 'BUS-103', route: 'Terminal ➔ Airport Express', currentConductor: 'Unassigned', status: 'INACTIVE' },
-  ]);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [currentTime, setCurrentTime] = useState('');
 
-  const [conductors] = useState([
-    { id: 'COND-01', name: 'Rajesh Kumar', phone: '9876543210' },
-    { id: 'COND-02', name: 'Suresh Verma', phone: '9876543211' },
-    { id: 'COND-03', name: 'Amit Singh', phone: '9876543212' },
-    { id: 'COND-04', name: 'Vikram Patel', phone: '9876543213' },
-  ]);
-
-  const [assignmentLogs, setAssignmentLogs] = useState([
-    { id: 1, busId: 'BUS-101', assignedTo: 'Rajesh Kumar', assignedBy: 'Owner (Admin)', timestamp: '2026-08-05 08:30 AM' },
-    { id: 2, busId: 'BUS-102', assignedTo: 'Suresh Verma', assignedBy: 'Owner (Admin)', timestamp: '2026-08-05 09:15 AM' },
-  ]);
-
-  const [cashbackRules, setCashbackRules] = useState({
-    defaultCashbackPct: 5,
-    minSpendAmount: 100,
-    festivalBonusPct: 10,
-    routeSpecificRule: { routeId: 'BUS-101', extraCashbackPct: 2 },
-    isEmergencyCreditEnabled: true,
-    maxEmergencyTrips: 1,
+  // Overview Stats
+  const [stats, setStats] = useState({
+    totalBuses: 0,
+    activeBuses: 0,
+    totalConductors: 0,
+    totalTickets: 0,
+    totalRevenue: 0,
+    totalPasses: 0,
+    todayShifts: 0,
   });
 
-  const [selectedBusForReassign, setSelectedBusForReassign] = useState(null);
-  const [newConductorId, setNewConductorId] = useState('');
-  const [toastMessage, setToastMessage] = useState(null);
+  // Dynamic Cashback Settings (Stored in DB)
+  const [cashbackSettings, setCashbackSettings] = useState({
+    defaultCashbackPct: 10,
+    minSpendAmount: 50,
+  });
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
 
-  const showToast = (msg) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
-  };
+  const showToast = useToast();
 
-  const handleReassignConductor = (e) => {
-    e.preventDefault();
-    if (!selectedBusForReassign || !newConductorId) return;
+  // Auth check
+  useEffect(() => {
+    const savedUser = localStorage.getItem('fleet_admin_user');
+    const token = localStorage.getItem('fleet_admin_token');
+    if (token && savedUser) {
+      try {
+        setCurrentUser(JSON.parse(savedUser));
+      } catch (e) {
+        localStorage.removeItem('fleet_admin_user');
+        localStorage.removeItem('fleet_admin_token');
+      }
+    }
+  }, []);
 
-    const conductorObj = conductors.find((c) => c.id === newConductorId);
-    const conductorName = conductorObj ? conductorObj.name : 'Unassigned';
-
-    setBuses((prev) =>
-      prev.map((b) =>
-        b.id === selectedBusForReassign
-          ? { ...b, currentConductor: conductorName, status: 'ACTIVE' }
-          : b
-      )
-    );
-
-    const newLog = {
-      id: Date.now(),
-      busId: selectedBusForReassign,
-      assignedTo: conductorName,
-      assignedBy: 'Owner (Admin)',
-      timestamp: new Date().toLocaleString(),
+  // Live IST Clock (DD-MM-YYYY hh:mm:ss AM/PM)
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const year = now.getFullYear();
+      let hours = now.getHours();
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      const strHours = String(hours).padStart(2, '0');
+      setCurrentTime(`${day}-${month}-${year} ${strHours}:${minutes}:${seconds} ${ampm}`);
     };
-    setAssignmentLogs([newLog, ...assignmentLogs]);
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
-    showToast(`Successfully assigned ${conductorName} to ${selectedBusForReassign}`);
-    setSelectedBusForReassign(null);
-    setNewConductorId('');
+  // Load Overview Data & Settings
+  const loadDashboardData = async () => {
+    try {
+      const [settingsRes, busRes, condRes, ticketsRes, passRes, shiftRes] = await Promise.all([
+        getSystemSettings(),
+        getBuses(),
+        getConductors(),
+        getAdminTickets(),
+        getAdminMonthlyPasses(),
+        getShiftLogs(),
+      ]);
+
+      if (settingsRes.data && settingsRes.data.settings) {
+        setCashbackSettings({
+          defaultCashbackPct: settingsRes.data.settings.default_cashback_pct,
+          minSpendAmount: settingsRes.data.settings.min_spend_amount,
+        });
+      }
+
+      const busList = Array.isArray(busRes.data) ? busRes.data : [];
+      const condList = Array.isArray(condRes.data) ? condRes.data : [];
+      const ticketData = ticketsRes.data || {};
+      const passList = Array.isArray(passRes.data) ? passRes.data : [];
+      const shiftList = Array.isArray(shiftRes.data) ? shiftRes.data : [];
+
+      setStats({
+        totalBuses: busList.length,
+        activeBuses: busList.filter((b) => b.status === 'ACTIVE').length,
+        totalConductors: condList.length,
+        totalTickets: ticketData.total || 0,
+        totalRevenue: ticketData.total_revenue || 0,
+        totalPasses: passList.length,
+        todayShifts: shiftList.length,
+      });
+    } catch (err) {
+      console.error('Error loading dashboard data:', err);
+    }
   };
 
-  const handleSaveFintechRules = (e) => {
+  useEffect(() => {
+    if (currentUser) {
+      loadDashboardData();
+    }
+  }, [currentUser]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('fleet_admin_token');
+    localStorage.removeItem('fleet_admin_user');
+    setCurrentUser(null);
+    showToast?.('Logged out successfully');
+  };
+
+  // Save Dynamic Cashback Settings to MySQL DB
+  const handleSaveSettings = async (e) => {
     e.preventDefault();
-    showToast('Loyalty & Cashback Rules updated live across all buses!');
+    setSettingsSaving(true);
+    try {
+      const res = await updateSystemSettings({
+        default_cashback_pct: parseFloat(cashbackSettings.defaultCashbackPct),
+        min_spend_amount: parseFloat(cashbackSettings.minSpendAmount),
+      });
+      if (res.data && res.data.success) {
+        showToast?.('Cashback and Spend rules saved dynamically to Database!');
+      }
+    } catch (err) {
+      showToast?.('Failed to save settings to database');
+    } finally {
+      setSettingsSaving(false);
+    }
   };
+
+  if (!currentUser) {
+    return <Login onLoginSuccess={(user) => setCurrentUser(user)} />;
+  }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex font-sans">
-      {toastMessage && (
-        <div className="fixed top-5 right-5 bg-emerald-500 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center space-x-2 z-50 animate-bounce">
-          <CheckCircle className="w-5 h-5" />
-          <span className="font-semibold text-sm">{toastMessage}</span>
-        </div>
-      )}
-
-      <aside className="w-64 bg-slate-950 p-6 border-r border-slate-800 flex flex-col justify-between">
-        <div className="space-y-8">
-          <div className="flex items-center space-x-3">
-            <div className="bg-indigo-600 p-2.5 rounded-xl">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex font-sans antialiased">
+      {/* Sidebar Navigation */}
+      <aside className="w-64 bg-slate-900/90 border-r border-slate-800/80 flex flex-col justify-between p-5 select-none shrink-0">
+        <div className="space-y-6">
+          {/* Brand Header */}
+          <div className="flex items-center space-x-3 px-2 py-1">
+            <div className="bg-gradient-to-tr from-indigo-600 to-indigo-500 p-2.5 rounded-2xl shadow-lg shadow-indigo-600/30 ring-2 ring-indigo-500/20">
               <Bus className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-base tracking-wide text-white">FleetAdmin</h1>
-              <p className="text-xs text-slate-400">Bus Operator Portal</p>
+              <h1 className="font-black text-sm tracking-wide text-white">Shree Mateshwari</h1>
+              <p className="text-[11px] text-indigo-400 font-semibold tracking-wider uppercase">Operator Admin</p>
             </div>
           </div>
 
-          <nav className="space-y-2">
+          {/* Navigation Links */}
+          <nav className="space-y-1">
             <button
-              onClick={() => setActiveTab('conductors')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-                activeTab === 'conductors'
+              onClick={() => setActiveTab('overview')}
+              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'overview'
                   ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                  : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
+                  : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
               }`}
             >
-              <Users className="w-5 h-5" />
-              <span>Conductor Duty</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('cashback')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-                activeTab === 'cashback'
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                  : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
-              }`}
-            >
-              <Gift className="w-5 h-5" />
-              <span>Loyalty & Cashback</span>
+              <LayoutDashboard className="w-4 h-4" />
+              <span>Dashboard Overview</span>
             </button>
 
             <button
               onClick={() => setActiveTab('buses')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'buses'
                   ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                  : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
+                  : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
               }`}
             >
-              <Bus className="w-5 h-5" />
-              <span>Buses</span>
+              <Bus className="w-4 h-4" />
+              <span>Bus Fleet</span>
             </button>
 
             <button
-              onClick={() => setActiveTab('conductors_list')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-                activeTab === 'conductors_list'
+              onClick={() => setActiveTab('conductors')}
+              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'conductors'
                   ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                  : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
+                  : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
               }`}
             >
-              <Users className="w-5 h-5" />
+              <Users className="w-4 h-4" />
               <span>Conductors</span>
             </button>
 
             <button
-              onClick={() => setActiveTab('routes')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-                activeTab === 'routes'
+              onClick={() => setActiveTab('cities')}
+              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'cities'
                   ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                  : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
+                  : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
               }`}
             >
-              <ArrowRightLeft className="w-5 h-5" />
-              <span>Routes</span>
+              <MapPin className="w-4 h-4" />
+              <span>City List</span>
             </button>
 
             <button
-              onClick={() => setActiveTab('logs')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-                activeTab === 'logs'
+              onClick={() => setActiveTab('shift_logs')}
+              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'shift_logs'
                   ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                  : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
+                  : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
               }`}
             >
-              <Clock className="w-5 h-5" />
+              <Clock className="w-4 h-4" />
               <span>Shift Audit Logs</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('tickets')}
+              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'tickets'
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                  : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+              }`}
+            >
+              <Ticket className="w-4 h-4" />
+              <span>All Tickets</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('monthly_passes')}
+              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'monthly_passes'
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                  : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+              }`}
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>Monthly Passes</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('cashback')}
+              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'cashback'
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                  : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+              }`}
+            >
+              <Gift className="w-4 h-4" />
+              <span>Cashback Rules (DB)</span>
             </button>
           </nav>
         </div>
 
-        <div className="border-t border-slate-800 pt-4 text-xs text-slate-500">
-          Logged in as <span className="text-slate-300 font-medium">Bus Owner</span>
+        {/* User Profile & Logout Bottom */}
+        <div className="border-t border-slate-800/80 pt-4 space-y-3">
+          <div className="flex items-center space-x-3 px-2">
+            <div className="w-8 h-8 rounded-full bg-indigo-950 border border-indigo-700/50 flex items-center justify-center font-bold text-xs text-indigo-300">
+              {currentUser.username?.slice(0, 2).toUpperCase() || 'AD'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-bold text-white truncate">{currentUser.full_name || currentUser.username}</div>
+              <div className="text-[10px] text-slate-400 truncate">{currentUser.email || 'Super Admin'}</div>
+            </div>
+          </div>
+
+          <button
+            onClick={handleLogout}
+            className="w-full py-2 px-3 bg-slate-800/60 hover:bg-rose-950/40 hover:text-rose-400 hover:border-rose-800/50 border border-slate-700/60 rounded-xl text-xs font-semibold text-slate-300 flex items-center justify-center space-x-2 transition-all cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out</span>
+          </button>
         </div>
       </aside>
 
-      <main className="flex-1 p-8 overflow-y-auto">
-        <div className="grid grid-cols-3 gap-6 mb-8">
-          <div className="bg-slate-800/60 border border-slate-700/60 p-5 rounded-2xl flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase">Active Buses</p>
-              <h3 className="text-2xl font-black text-white mt-1">
-                {buses.filter((b) => b.status === 'ACTIVE').length} / {buses.length}
-              </h3>
-            </div>
-            <div className="bg-indigo-500/10 p-3 rounded-xl text-indigo-400">
-              <Bus className="w-6 h-6" />
-            </div>
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Top Navbar */}
+        <header className="h-16 bg-slate-900/60 border-b border-slate-800/80 px-8 flex items-center justify-between shrink-0">
+          <div className="flex items-center space-x-3">
+            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+              {activeTab === 'overview' && 'Live Fleet & Financial Overview'}
+              {activeTab === 'buses' && 'Bus Fleet Management'}
+              {activeTab === 'conductors' && 'Conductor Roster'}
+              {activeTab === 'cities' && 'Operational Cities'}
+              {activeTab === 'shift_logs' && 'Shift Auditing'}
+              {activeTab === 'tickets' && 'Ticket Repository'}
+              {activeTab === 'monthly_passes' && 'Monthly Pass Directory'}
+              {activeTab === 'cashback' && 'Dynamic Cashback & Spend Thresholds'}
+            </span>
           </div>
 
-          <div className="bg-slate-800/60 border border-slate-700/60 p-5 rounded-2xl flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase">Default Cashback</p>
-              <h3 className="text-2xl font-black text-emerald-400 mt-1">
-                {cashbackRules.defaultCashbackPct}%
-              </h3>
-            </div>
-            <div className="bg-emerald-500/10 p-3 rounded-xl text-emerald-400">
-              <Percent className="w-6 h-6" />
+          <div className="flex items-center space-x-4">
+            <div className="text-xs font-mono text-slate-400 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
+              <Clock className="w-3.5 h-3.5 inline mr-1.5 text-indigo-400" />
+              <span>{currentTime}</span>
             </div>
           </div>
+        </header>
 
-          <div className="bg-slate-800/60 border border-slate-700/60 p-5 rounded-2xl flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase">Emergency Overdraft</p>
-              <h3 className="text-2xl font-black text-amber-400 mt-1">
-                {cashbackRules.isEmergencyCreditEnabled ? 'ENABLED' : 'DISABLED'}
-              </h3>
-            </div>
-            <div className="bg-amber-500/10 p-3 rounded-xl text-amber-400">
-              <ShieldAlert className="w-6 h-6" />
-            </div>
-          </div>
-        </div>
-
-        {activeTab === 'conductors' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-bold text-white">Conductor Shift Management</h2>
-                <p className="text-xs text-slate-400">Assign authorized conductors to specific buses in real time.</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {buses.map((bus) => (
-                <div key={bus.id} className="bg-slate-800/40 border border-slate-700/60 rounded-2xl p-6 flex flex-col justify-between">
+        {/* Dynamic Page Container */}
+        <div className="flex-1 p-8 overflow-y-auto">
+          {/* TAB 1: OVERVIEW */}
+          {activeTab === 'overview' && (
+            <div className="space-y-8">
+              {/* Quick KPI Overview */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div className="bg-slate-900/60 border border-slate-800/80 p-5 rounded-2xl flex items-center justify-between">
                   <div>
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="font-mono text-sm font-bold text-indigo-400 bg-indigo-950 px-3 py-1 rounded-lg border border-indigo-800/50">
-                        {bus.id}
-                      </span>
-                      <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${
-                        bus.status === 'ACTIVE'
-                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/50'
-                          : 'bg-slate-700 text-slate-400'
-                      }`}>
-                        {bus.status}
-                      </span>
-                    </div>
-
-                    <h4 className="text-base font-bold text-white mb-1">{bus.route}</h4>
-                    <p className="text-xs text-slate-400 mb-4">
-                      Active Conductor:{' '}
-                      <span className="text-slate-200 font-semibold">{bus.currentConductor}</span>
-                    </p>
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Revenue</p>
+                    <h3 className="text-2xl font-black text-emerald-400 mt-1">
+                      ₹{stats.totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-1">{stats.totalTickets} total tickets</p>
                   </div>
+                  <div className="p-3 bg-emerald-500/10 rounded-2xl text-emerald-400">
+                    <IndianRupee className="w-6 h-6" />
+                  </div>
+                </div>
+
+                <div className="bg-slate-900/60 border border-slate-800/80 p-5 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Active Buses</p>
+                    <h3 className="text-2xl font-black text-white mt-1">
+                      {stats.activeBuses} / {stats.totalBuses}
+                    </h3>
+                    <p className="text-[11px] text-indigo-400 mt-1">Fleet operational</p>
+                  </div>
+                  <div className="p-3 bg-indigo-500/10 rounded-2xl text-indigo-400">
+                    <Bus className="w-6 h-6" />
+                  </div>
+                </div>
+
+                <div className="bg-slate-900/60 border border-slate-800/80 p-5 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Conductors Roster</p>
+                    <h3 className="text-2xl font-black text-white mt-1">{stats.totalConductors}</h3>
+                    <p className="text-[11px] text-slate-500 mt-1">Authorized crew</p>
+                  </div>
+                  <div className="p-3 bg-indigo-500/10 rounded-2xl text-indigo-400">
+                    <Users className="w-6 h-6" />
+                  </div>
+                </div>
+
+                <div className="bg-slate-900/60 border border-slate-800/80 p-5 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Default Cashback</p>
+                    <h3 className="text-2xl font-black text-amber-400 mt-1">
+                      {cashbackSettings.defaultCashbackPct}%
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-1">Min Spend: ₹{cashbackSettings.minSpendAmount}</p>
+                  </div>
+                  <div className="p-3 bg-amber-500/10 rounded-2xl text-amber-400">
+                    <Percent className="w-6 h-6" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Actions / Shortcuts */}
+              <div className="bg-gradient-to-r from-indigo-950/40 via-slate-900/60 to-slate-900/60 border border-indigo-900/30 rounded-3xl p-6">
+                <h3 className="text-base font-bold text-white mb-4 flex items-center space-x-2">
+                  <Activity className="w-5 h-5 text-indigo-400" />
+                  <span>Fleet Management Quick Actions</span>
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <button
+                    onClick={() => setActiveTab('buses')}
+                    className="p-4 bg-slate-800/60 hover:bg-indigo-600/20 border border-slate-700/60 hover:border-indigo-500/40 rounded-2xl text-left transition-all group cursor-pointer"
+                  >
+                    <Bus className="w-5 h-5 text-indigo-400 group-hover:scale-110 transition-transform mb-2" />
+                    <div className="text-xs font-bold text-white">Add / Edit Bus</div>
+                    <div className="text-[11px] text-slate-400">Assign routes & crew</div>
+                  </button>
 
                   <button
-                    onClick={() => setSelectedBusForReassign(bus.id)}
-                    className="w-full bg-slate-700 hover:bg-slate-600 text-slate-100 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-2"
+                    onClick={() => setActiveTab('conductors')}
+                    className="p-4 bg-slate-800/60 hover:bg-indigo-600/20 border border-slate-700/60 hover:border-indigo-500/40 rounded-2xl text-left transition-all group cursor-pointer"
                   >
-                    <ArrowRightLeft className="w-4 h-4" />
-                    <span>Change Conductor</span>
+                    <Users className="w-5 h-5 text-indigo-400 group-hover:scale-110 transition-transform mb-2" />
+                    <div className="text-xs font-bold text-white">Add Conductor</div>
+                    <div className="text-[11px] text-slate-400">New login credentials</div>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab('cities')}
+                    className="p-4 bg-slate-800/60 hover:bg-indigo-600/20 border border-slate-700/60 hover:border-indigo-500/40 rounded-2xl text-left transition-all group cursor-pointer"
+                  >
+                    <MapPin className="w-5 h-5 text-indigo-400 group-hover:scale-110 transition-transform mb-2" />
+                    <div className="text-xs font-bold text-white">Manage City List</div>
+                    <div className="text-[11px] text-slate-400">Add operational towns</div>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab('tickets')}
+                    className="p-4 bg-slate-800/60 hover:bg-indigo-600/20 border border-slate-700/60 hover:border-indigo-500/40 rounded-2xl text-left transition-all group cursor-pointer"
+                  >
+                    <Ticket className="w-5 h-5 text-indigo-400 group-hover:scale-110 transition-transform mb-2" />
+                    <div className="text-xs font-bold text-white">View All Tickets</div>
+                    <div className="text-[11px] text-slate-400">Filter by bus & date</div>
                   </button>
                 </div>
-              ))}
-            </div>
-
-            {selectedBusForReassign && (
-              <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full space-y-4">
-                  <h3 className="text-lg font-bold text-white">Reassign Conductor: {selectedBusForReassign}</h3>
-                  <p className="text-xs text-slate-400">
-                    Payment webhooks for {selectedBusForReassign} will immediately route to the newly assigned conductor's mobile phone.
-                  </p>
-
-                  <form onSubmit={handleReassignConductor} className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Select Conductor</label>
-                      <select
-                        value={newConductorId}
-                        onChange={(e) => setNewConductorId(e.target.value)}
-                        className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                        required
-                      >
-                        <option value="">-- Choose Authorized Conductor --</option>
-                        {conductors.map((c) => (
-                          <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="flex space-x-3 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedBusForReassign(null)}
-                        className="flex-1 bg-slate-800 text-slate-300 py-3 rounded-xl text-xs font-bold hover:bg-slate-700"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        className="flex-1 bg-indigo-600 text-white py-3 rounded-xl text-xs font-bold hover:bg-indigo-500"
-                      >
-                        Save Assignment
-                      </button>
-                    </div>
-                  </form>
-                </div>
               </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'buses' && (
-          <div className="space-y-6">
-            <Buses apiBaseUrl={API_BASE_URL} />
-          </div>
-        )}
-
-        {activeTab === 'conductors_list' && (
-          <div className="space-y-6">
-            <Conductors apiBaseUrl={API_BASE_URL} />
-          </div>
-        )}
-
-        {activeTab === 'routes' && (
-          <div className="space-y-6">
-            <RoutesPage apiBaseUrl={API_BASE_URL} />
-          </div>
-        )}
-
-        {activeTab === 'cashback' && (
-          <div className="max-w-3xl space-y-6">
-            <div>
-              <h2 className="text-xl font-bold text-white">Loyalty, Cashback & Overdraft Controls</h2>
-              <p className="text-xs text-slate-400">Configure real-time incentives for commuters and monthly pass holders.</p>
             </div>
+          )}
 
-            <form onSubmit={handleSaveFintechRules} className="bg-slate-800/40 border border-slate-700/60 rounded-2xl p-6 space-y-6">
-              <div className="grid grid-cols-2 gap-6">
+          {/* TAB 2: BUS FLEET */}
+          {activeTab === 'buses' && <Buses />}
+
+          {/* TAB 3: CONDUCTORS */}
+          {activeTab === 'conductors' && <Conductors />}
+
+          {/* TAB 4: CITY LIST (Replacing Add Route) */}
+          {activeTab === 'cities' && <Cities />}
+
+          {/* TAB 5: SHIFT AUDIT LOGS */}
+          {activeTab === 'shift_logs' && <ShiftAuditLogs />}
+
+          {/* TAB 6: ALL TICKETS */}
+          {activeTab === 'tickets' && <TicketsList />}
+
+          {/* TAB 7: MONTHLY PASSES */}
+          {activeTab === 'monthly_passes' && <MonthlyPasses />}
+
+          {/* TAB 8: DYNAMIC CASHBACK RULES (SAVED TO DB) */}
+          {activeTab === 'cashback' && (
+            <div className="max-w-2xl mx-auto space-y-6">
+              <div>
+                <h2 className="text-xl font-bold text-white flex items-center space-x-2">
+                  <Gift className="w-6 h-6 text-indigo-400" />
+                  <span>Dynamic Cashback & Spend Thresholds</span>
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Configure default percentage cashback and minimum spend amount. Saved directly to MySQL <code className="text-indigo-300">system_settings</code> and applied in real time to ticket orders.
+                </p>
+              </div>
+
+              <form onSubmit={handleSaveSettings} className="bg-slate-900/80 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-2">Default Cashback Percentage (%)</label>
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+                    Default Cashback Percentage (%)
+                  </label>
                   <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                      <Percent className="w-5 h-5" />
+                    </div>
                     <input
                       type="number"
+                      step="0.5"
                       min="0"
-                      max="50"
-                      value={cashbackRules.defaultCashbackPct}
-                      onChange={(e) => setCashbackRules({ ...cashbackRules, defaultCashbackPct: Number(e.target.value) })}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      max="100"
+                      required
+                      value={cashbackSettings.defaultCashbackPct}
+                      onChange={(e) =>
+                        setCashbackSettings({
+                          ...cashbackSettings,
+                          defaultCashbackPct: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="w-full pl-11 pr-4 py-3 bg-slate-800/80 border border-slate-700/80 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                     />
-                    <Percent className="w-4 h-4 text-slate-500 absolute right-3 top-3.5" />
                   </div>
+                  <p className="text-[11px] text-slate-500 mt-1.5">
+                    Percentage discount/cashback applied immediately to passenger fare at checkout.
+                  </p>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-2">Minimum Spend Threshold (₹)</label>
-                  <input
-                    type="number"
-                    min="10"
-                    value={cashbackRules.minSpendAmount}
-                    onChange={(e) => setCashbackRules({ ...cashbackRules, minSpendAmount: Number(e.target.value) })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="border-t border-slate-700/60 pt-6">
-                <div className="flex items-center space-x-2 mb-3">
-                  <Sparkles className="w-5 h-5 text-amber-400" />
-                  <h3 className="text-sm font-bold text-white">Festival / Special Offer Campaign</h3>
-                </div>
-
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-2">Festival Bonus Cashback (%)</label>
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+                    Minimum Spend Threshold (₹)
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                      <IndianRupee className="w-5 h-5" />
+                    </div>
                     <input
                       type="number"
+                      step="1"
                       min="0"
-                      value={cashbackRules.festivalBonusPct}
-                      onChange={(e) => setCashbackRules({ ...cashbackRules, festivalBonusPct: Number(e.target.value) })}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      required
+                      value={cashbackSettings.minSpendAmount}
+                      onChange={(e) =>
+                        setCashbackSettings({
+                          ...cashbackSettings,
+                          minSpendAmount: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="w-full pl-11 pr-4 py-3 bg-slate-800/80 border border-slate-700/80 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                     />
                   </div>
+                  <p className="text-[11px] text-slate-500 mt-1.5">
+                    Tickets with fare equal or greater than this threshold will receive cashback.
+                  </p>
+                </div>
 
+                <div className="p-4 bg-indigo-950/40 border border-indigo-800/40 rounded-2xl text-xs text-indigo-300 space-y-1">
+                  <div className="font-bold flex items-center space-x-1.5">
+                    <ShieldCheck className="w-4 h-4 text-indigo-400" />
+                    <span>Live Computation Formula:</span>
+                  </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-2">Route-Specific Extra Reward (%)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={cashbackRules.routeSpecificRule.extraCashbackPct}
-                      onChange={(e) => setCashbackRules({
-                        ...cashbackRules,
-                        routeSpecificRule: { ...cashbackRules.routeSpecificRule, extraCashbackPct: Number(e.target.value) },
-                      })}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                    />
+                    If Fare ≥ ₹{cashbackSettings.minSpendAmount}, Passenger gets{' '}
+                    <span className="font-bold text-white">{cashbackSettings.defaultCashbackPct}% Cashback</span>.
+                  </div>
+                  <div className="text-slate-400 text-[11px]">
+                    Example: For ₹100 ticket &rarr; Cashback is ₹
+                    {((100 * cashbackSettings.defaultCashbackPct) / 100).toFixed(2)}, Passenger pays ₹
+                    {(100 - (100 * cashbackSettings.defaultCashbackPct) / 100).toFixed(2)}.
                   </div>
                 </div>
-              </div>
 
-              <div className="border-t border-slate-700/60 pt-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-white">Emergency Overdraft Trip (Wallet Balance)</h3>
-                    <p className="text-xs text-slate-400">Allow regular commuters 1 emergency trip loan if wallet balance is low.</p>
-                  </div>
-
-                  <input
-                    type="checkbox"
-                    checked={cashbackRules.isEmergencyCreditEnabled}
-                    onChange={(e) => setCashbackRules({ ...cashbackRules, isEmergencyCreditEnabled: e.target.checked })}
-                    className="w-5 h-5 accent-indigo-600 rounded cursor-pointer"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4">
                 <button
                   type="submit"
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-xl text-xs transition-all flex items-center space-x-2 shadow-lg shadow-indigo-600/30"
+                  disabled={settingsSaving}
+                  className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2 transition-all cursor-pointer"
                 >
                   <Save className="w-4 h-4" />
-                  <span>Update Rules Live</span>
+                  <span>{settingsSaving ? 'Saving to Database...' : 'Save Settings to Database'}</span>
                 </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {activeTab === 'logs' && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-bold text-white">Conductor Shift Audit Trail</h2>
-              <p className="text-xs text-slate-400">Immutable record of conductor shifts and bus assignments.</p>
+              </form>
             </div>
-
-            <div className="bg-slate-800/40 border border-slate-700/60 rounded-2xl overflow-hidden">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-900/80 text-xs uppercase text-slate-400 border-b border-slate-700/60">
-                  <tr>
-                    <th className="p-4">Bus ID</th>
-                    <th className="p-4">Assigned Conductor</th>
-                    <th className="p-4">Assigned By</th>
-                    <th className="p-4">Timestamp</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {assignmentLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-800/30 text-slate-200">
-                      <td className="p-4 font-mono font-bold text-indigo-400">{log.busId}</td>
-                      <td className="p-4 font-semibold">{log.assignedTo}</td>
-                      <td className="p-4 text-xs text-slate-400">{log.assignedBy}</td>
-                      <td className="p-4 text-xs font-mono text-slate-400">{log.timestamp}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </main>
     </div>
   );
