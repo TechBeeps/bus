@@ -1,0 +1,25 @@
+# Git and IDE
+.git
+.gitignore
+.vscode
+.idea
+
+# Environment secrets
+.env
+.env*
+**/.env
+**/.env*
+!**/.env.example
+
+# Python
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.venv
+venv
+.pytest_cache
+
+# Node / JS
+node_modules
+npm-debug.log

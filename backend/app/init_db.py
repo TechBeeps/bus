@@ -1,120 +1,115 @@
-from database import get_connection
 import os
+import sys
 
-conn = get_connection()
-cursor = conn.cursor()
+# Support direct execution from any working directory
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+if CURRENT_DIR not in sys.path:
+    sys.path.insert(0, CURRENT_DIR)
 
-# Table create
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS payments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    payment_id TEXT UNIQUE,
-    bus_id TEXT,
-    amount REAL,
-    cashback REAL,
-    status TEXT,
-    razorpay_order_id TEXT,
-    razorpay_payment_id TEXT,
-    created_at TEXT,
-    updated_at TEXT,
-    paid_at TEXT
-)
-""")
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS push_token (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    token TEXT,
-    created_at TEXT,
-    updated_at TEXT
-)
-""")
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS user (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    mobile_number TEXT UNIQUE,
-    user_pin TEXT,
-    cashback REAL,
-    created_at TEXT,
-    updated_at TEXT
-)
-""")
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS monthly_passes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    pass_id TEXT UNIQUE,
-    bus_id TEXT NOT NULL,
-    name TEXT NOT NULL,
-    mobile TEXT NOT NULL,
-    pin TEXT NOT NULL,
-    amount REAL DEFAULT 1000,
-    total_rides INTEGER DEFAULT 62,
-    used_rides INTEGER DEFAULT 0,
-    remaining_rides INTEGER DEFAULT 62,
-    status TEXT DEFAULT 'ACTIVE',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-)
-""")
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS pass_usage (
-     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    pass_id INTEGER NOT NULL,
-    bus_id TEXT NOT NULL,
-    used_at DATETIME DEFAULT CURRENT_TIMESTAMP
-)
-""")
-cursor.execute("""
-CREATE UNIQUE INDEX IF NOT EXISTS idx_monthly_pass_mobile
-ON monthly_passes(mobile)
-""")
+try:
+    from app.database import get_connection, DB_NAME, DB_HOST, DB_PORT, DB_USER
+except ImportError:
+    from database import get_connection, DB_NAME, DB_HOST, DB_PORT, DB_USER
 
 
+def init_database():
+    print(f"Connecting to MySQL server at {DB_HOST}:{DB_PORT} as {DB_USER}...")
 
-# Check if phone_number column exists
-cursor.execute("PRAGMA table_info(payments)")
-columns = [col[1] for col in cursor.fetchall()]
+    # Step 1: Bootstrap connection to ensure database exists
+    try:
+        bootstrap_conn = get_connection(database=None)
+        bootstrap_cursor = bootstrap_conn.cursor()
+        bootstrap_cursor.execute(
+            f"CREATE DATABASE IF NOT EXISTS `{DB_NAME}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+        )
+        bootstrap_conn.commit()
+        bootstrap_cursor.close()
+        bootstrap_conn.close()
+        print(f"Database `{DB_NAME}` verified/created.")
+    except Exception as e:
+        print(f"Warning during database bootstrap: {e}")
 
+    # Step 2: Connect to target database and create tables
+    conn = get_connection(database=DB_NAME)
+    cursor = conn.cursor()
 
-
-if "phone_number" not in columns:
+    # Table: payments
     cursor.execute("""
-    ALTER TABLE payments
-    ADD COLUMN phone_number TEXT
+    CREATE TABLE IF NOT EXISTS payments (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        payment_id VARCHAR(100) UNIQUE,
+        bus_id VARCHAR(50),
+        amount DECIMAL(10, 2),
+        cashback DECIMAL(10, 2) DEFAULT 0.00,
+        status VARCHAR(50),
+        razorpay_order_id VARCHAR(100),
+        razorpay_payment_id VARCHAR(100),
+        phone_number VARCHAR(20),
+        origin VARCHAR(100),
+        destination VARCHAR(100),
+        passenger_count INT DEFAULT 1,
+        created_at VARCHAR(50),
+        updated_at VARCHAR(50),
+        paid_at VARCHAR(50)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
 
-if "origin" not in columns:
+    # Table: push_token
     cursor.execute("""
-    ALTER TABLE payments
-    ADD COLUMN origin TEXT
-    """)
-if "destination" not in columns:
-    cursor.execute("""
-    ALTER TABLE payments
-    ADD COLUMN destination TEXT
-    """)
-if "passenger_count" not in columns:
-    cursor.execute("""
-    ALTER TABLE payments
-    ADD COLUMN passenger_count INTEGER
+    CREATE TABLE IF NOT EXISTS push_token (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        token VARCHAR(255) UNIQUE,
+        created_at VARCHAR(50),
+        updated_at VARCHAR(50)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
 
-cursor.execute("PRAGMA table_info(push_token)")
-columns = [col[1] for col in cursor.fetchall()]
-
-if "updated_at" not in columns:
+    # Table: user
     cursor.execute("""
-    ALTER TABLE push_token
-    ADD COLUMN updated_at TEXT
+    CREATE TABLE IF NOT EXISTS user (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        mobile_number VARCHAR(20) UNIQUE,
+        user_pin VARCHAR(10),
+        cashback DECIMAL(10, 2) DEFAULT 0.00,
+        created_at VARCHAR(50),
+        updated_at VARCHAR(50)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
-    print("updated_at column added")
+
+    # Table: monthly_passes
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS monthly_passes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        pass_id VARCHAR(100) UNIQUE,
+        bus_id VARCHAR(50) NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        mobile VARCHAR(20) NOT NULL UNIQUE,
+        pin VARCHAR(10) NOT NULL,
+        amount DECIMAL(10, 2) DEFAULT 1000.00,
+        total_rides INT DEFAULT 62,
+        used_rides INT DEFAULT 0,
+        remaining_rides INT DEFAULT 62,
+        status VARCHAR(20) DEFAULT 'ACTIVE',
+        created_at VARCHAR(50)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+
+    # Table: pass_usage
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS pass_usage (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        pass_id VARCHAR(100) NOT NULL,
+        bus_id VARCHAR(50) NOT NULL,
+        used_at VARCHAR(50)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    print(f"All MySQL tables successfully initialized in database `{DB_NAME}`!")
 
 
-
-conn.commit()
-conn.close()
-
-print("Database Ready")
-print("INIT DB PATH =", os.path.abspath("bus_payments.db"))
+if __name__ == "__main__":
+    init_database()

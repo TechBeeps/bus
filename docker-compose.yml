@@ -8,8 +8,8 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
-    volumes:
-      - /home/shreemateshwaribus/sql-lite-db/bus_payments.db:/app/backend/app/bus_payments.db
+    env_file:
+      - backend/.env
 
   passenger-webapp:
     build:
