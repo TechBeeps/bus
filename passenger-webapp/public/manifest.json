@@ -41,5 +41,21 @@
       "sizes": "512x512",
       "purpose": "maskable"
     }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Shree Mateshwari Buses Desktop"
+    },
+    {
+      "src": "/screenshot-narrow.png",
+      "sizes": "540x960",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Shree Mateshwari Buses Mobile"
+    }
   ]
 }
