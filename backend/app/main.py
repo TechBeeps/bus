@@ -1066,7 +1066,7 @@ def use_monthly_pass(payload: dict):
                     "success": False,
                     "deducted": False,
                     "remaining_rides": pass_row["remaining_rides"],
-                    "message": "Pass already used within 3 hours",
+                    "message": "Monthly Pass already used within 3 hours",
                 }
         except Exception as e:
             print("Time parse error:", e)
