@@ -166,7 +166,7 @@ export default function QrScanner() {
       if (window.navigator && window.navigator.vibrate) {
         window.navigator.vibrate(200);
       }
-    } catch (e) {}
+    } catch (e) { }
 
     // Stop camera on successful scan
     stopScanner();
@@ -328,11 +328,10 @@ export default function QrScanner() {
         <div className="grid grid-cols-2 gap-2 bg-slate-200/80 p-1.5 rounded-2xl border border-slate-300/70 shadow-inner">
           <button
             onClick={() => setActiveTab("scanner")}
-            className={`py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition-all cursor-pointer ${
-              activeTab === "scanner"
+            className={`py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition-all cursor-pointer ${activeTab === "scanner"
                 ? "bg-indigo-600 text-white shadow-md"
                 : "text-slate-600 hover:text-slate-900"
-            }`}
+              }`}
           >
             <Camera className="w-4 h-4" />
             <span>Scan Bus QR</span>
@@ -343,11 +342,10 @@ export default function QrScanner() {
               stopScanner();
               setActiveTab("manual_bus");
             }}
-            className={`py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition-all cursor-pointer ${
-              activeTab === "manual_bus"
+            className={`py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition-all cursor-pointer ${activeTab === "manual_bus"
                 ? "bg-indigo-600 text-white shadow-md"
                 : "text-slate-600 hover:text-slate-900"
-            }`}
+              }`}
           >
             <Bus className="w-4 h-4" />
             <span>Select Bus Manually</span>
@@ -588,11 +586,10 @@ export default function QrScanner() {
                     <div
                       key={bId}
                       onClick={() => setSelectedBus(bus)}
-                      className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between ${
-                        isSelected
+                      className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between ${isSelected
                           ? "border-indigo-600 bg-indigo-50/60 shadow-sm"
                           : "border-slate-200 hover:border-slate-300 bg-slate-50/40 hover:bg-slate-50"
-                      }`}
+                        }`}
                     >
                       <div className="space-y-1 flex-1 pr-3">
                         <div className="flex items-center space-x-2">
@@ -617,11 +614,10 @@ export default function QrScanner() {
 
                       <div className="pl-2">
                         <div
-                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                            isSelected
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${isSelected
                               ? "border-indigo-600 bg-indigo-600 text-white"
                               : "border-slate-300 bg-white"
-                          }`}
+                            }`}
                         >
                           {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
                         </div>
@@ -677,22 +673,7 @@ export default function QrScanner() {
         )}
       </main>
 
-      {/* Sticky Bottom Bar */}
-      <footer className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 backdrop-blur-md px-4 py-3 shadow-md">
-        <div className="max-w-md mx-auto flex items-center justify-between text-xs text-slate-700">
-          <div className="flex items-center space-x-2">
-            <Sparkles className="w-4 h-4 text-indigo-600" />
-            <span>Scan QR or select bus to start journey</span>
-          </div>
-          <button
-            onClick={handleInstallClick}
-            className="font-bold text-indigo-600 hover:text-indigo-800 flex items-center space-x-1 cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Install App</span>
-          </button>
-        </div>
-      </footer>
+
     </div>
   );
 }
