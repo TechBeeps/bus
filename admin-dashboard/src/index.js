@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
 import './index.css';
 import AdminDashboard from './AdminDashboard';
 import { ToastProvider } from './contexts/ToastContext';
@@ -32,8 +33,10 @@ if (typeof window !== 'undefined') {
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <ToastProvider>
-      <AdminDashboard />
-    </ToastProvider>
+    <BrowserRouter>
+      <ToastProvider>
+        <AdminDashboard />
+      </ToastProvider>
+    </BrowserRouter>
   </React.StrictMode>
 );

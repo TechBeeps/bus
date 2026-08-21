@@ -58,6 +58,14 @@ export default function BusPayment() {
 
       const data = response.data;
 
+      // Milestone Reward: 100% Free Ride without payment
+      if (data.free_ride) {
+        alert(data.message || "🎉 Congratulations! You received a 100% FREE RIDE milestone reward!");
+        setPaying(false);
+        navigate(`/ticket/${data.payment_id}`);
+        return;
+      }
+
       const options = {
         key: data.key,
         amount: Number(amount) * 100,

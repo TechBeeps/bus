@@ -218,7 +218,7 @@ export default function TicketsList() {
                   <th className="p-4">Route</th>
                   <th className="p-4">Passenger Info</th>
                   <th className="p-4">Amount</th>
-                  <th className="p-4">Cashback</th>
+                  <th className="p-4">Discount</th>
                   <th className="p-4">Status</th>
                   <th className="p-4">Date & Time (IST)</th>
                 </tr>
@@ -228,6 +228,10 @@ export default function TicketsList() {
                   const isMonthlyPass =
                     t.razorpay_payment_id === 'monthly_pass' ||
                     t.payment_id?.startsWith('PASS-');
+                  const isFreeRide =
+                    t.razorpay_payment_id === 'free_milestone_ride' ||
+                    t.payment_id?.startsWith('FREE-') ||
+                    Boolean(t.discount_reason);
 
                   return (
                     <tr key={t.id || t.payment_id} className="hover:bg-slate-800/30 transition-colors">
@@ -238,6 +242,11 @@ export default function TicketsList() {
                         {isMonthlyPass ? (
                           <div className="text-[11px] text-purple-400 font-mono font-semibold">
                             Pass ID: {t.pass_id || (t.payment_id?.startsWith('PASS-') ? `MPASS-${t.payment_id.replace('PASS-', '')}` : (t.pass_number || 'MPASS-1001'))}
+                          </div>
+                        ) : isFreeRide ? (
+                          <div className="text-[10px] text-emerald-400 font-mono font-bold flex items-center space-x-1">
+                            <Gift className="w-3 h-3" />
+                            <span>{t.discount_reason || 'Free Milestone Ride'}</span>
                           </div>
                         ) : (
                           t.razorpay_payment_id && (
@@ -278,17 +287,39 @@ export default function TicketsList() {
                           {t.passenger_count || 1} Passenger(s)
                         </div>
                       </td>
-                      <td className="p-4 font-mono font-bold text-emerald-400 text-sm">
-                        ₹{(parseFloat(t.amount) || 0).toFixed(2)}
+                      <td className="p-4">
+                        {isFreeRide ? (
+                          <div>
+                            <span className="font-mono font-black text-emerald-400 text-sm">₹0.00</span>
+                            <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Free Ride</div>
+                          </div>
+                        ) : (
+                          <span className="font-mono font-bold text-emerald-400 text-sm">
+                            ₹{(parseFloat(t.amount) || 0).toFixed(2)}
+                          </span>
+                        )}
                       </td>
                       <td className="p-4 font-mono font-semibold text-amber-400 text-xs">
-                        {parseFloat(t.cashback) > 0 ? `₹${parseFloat(t.cashback).toFixed(2)}` : '—'}
+                        {isFreeRide ? (
+                          <span className="text-emerald-400 font-bold">
+                            ₹{(parseFloat(t.cashback) || 0).toFixed(2)} (100% Free)
+                          </span>
+                        ) : parseFloat(t.cashback) > 0 ? (
+                          `₹${parseFloat(t.cashback).toFixed(2)}`
+                        ) : (
+                          '—'
+                        )}
                       </td>
                       <td className="p-4">
                         {isMonthlyPass ? (
                           <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">
                             <CreditCard className="w-3 h-3" />
                             <span>PASS RIDE</span>
+                          </span>
+                        ) : isFreeRide ? (
+                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                            <Gift className="w-3 h-3" />
+                            <span>FREE MILESTONE</span>
                           </span>
                         ) : (
                           <span

@@ -57,3 +57,11 @@ export const getAdminMonthlyPasses = (params) => client.get('/admin/monthly-pass
 export const createAdminMonthlyPass = (payload) => client.post('/admin/monthly-passes', payload);
 export const updateAdminMonthlyPass = (id, payload) => client.put(`/admin/monthly-passes/${id}`, payload);
 export const deleteAdminMonthlyPass = (id) => client.delete(`/admin/monthly-passes/${id}`);
+
+// Customers (Admin)
+export const getAdminCustomers = (params) => client.get('/admin/customers', { params });
+
+// Loyalty Milestone Rules (Admin)
+export const getLoyaltyRules = () => client.get('/admin/loyalty-rules');
+export const createLoyaltyRule = (payload) => client.post('/admin/loyalty-rules', payload);
+export const deleteLoyaltyRule = (id) => client.delete(`/admin/loyalty-rules/${id}`);

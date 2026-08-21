@@ -210,6 +210,12 @@ class AdminPassUpdateRequest(BaseModel):
     status: Optional[str] = "ACTIVE"
 
 
+class LoyaltyRuleCreateRequest(BaseModel):
+    spend_threshold: float
+    reward_rides: Optional[int] = 1
+    title: Optional[str] = None
+
+
 # --- Mock In-Memory Store for MVP ---
 tickets_db = {}
 conductor_live_alerts = {}
@@ -402,8 +408,117 @@ def get_dynamic_cashback_rules():
 
 @app.post("/api/v1/payment/order")
 def create_payment(payload: CreatePaymentRequest):
+    base_fare = float(payload.amount or 0.0)
+    clean_mobile = str(payload.mobile).strip() if payload.mobile else ""
+
+    # =========================================================================
+    # 1. Check if customer is eligible for a Spend Milestone FREE RIDE!
+    # =========================================================================
+    if clean_mobile and clean_mobile not in ("Cash / QR", "monthly_pass", "N/A", "undefined", "null"):
+        try:
+            conn_loyalty = get_connection()
+            c_loyalty = get_cursor(conn_loyalty)
+
+            c_loyalty.execute(
+                "SELECT id, name, total_spent, last_milestone_claimed, free_rides_redeemed, total_tickets, cashback FROM user WHERE mobile_number = %s",
+                (clean_mobile,)
+            )
+            user_row = c_loyalty.fetchone()
+
+            if user_row:
+                total_spent = float(user_row.get("total_spent") or 0.0)
+                last_claimed = float(user_row.get("last_milestone_claimed") or 0.0)
+
+                # Fetch all active milestone rules ordered by threshold ascending
+                c_loyalty.execute("SELECT id, spend_threshold, title, reward_rides FROM loyalty_rules WHERE status = 'ACTIVE' ORDER BY spend_threshold ASC")
+                milestone_rules = c_loyalty.fetchall()
+
+                eligible_rule = None
+                for rule in milestone_rules:
+                    thresh = float(rule["spend_threshold"])
+                    if total_spent >= thresh and thresh > last_claimed:
+                        eligible_rule = rule
+                        break
+
+                if eligible_rule:
+                    thresh = float(eligible_rule["spend_threshold"])
+                    reward_reason = f"Milestone Reward: Free Ride on Rs.{int(thresh)} Spend"
+                    free_payment_id = f"FREE-{int(time.time())}"
+
+                    # Lookup bus info
+                    bus_no = ""
+                    origin = ""
+                    destination = ""
+                    c_loyalty.execute("SELECT bus_number, origin_city, destination_city FROM buses WHERE bus_id = %s", (payload.bus_id,))
+                    b_row = c_loyalty.fetchone()
+                    if b_row:
+                        bus_no = b_row["bus_number"]
+                        origin = b_row["origin_city"]
+                        destination = b_row["destination_city"]
+                    if not bus_no:
+                        route = BUS_ROUTES.get(payload.bus_id, {})
+                        bus_no = route.get("bus_no", "")
+                        origin = route.get("origin", "")
+                        destination = route.get("destination", "")
+
+                    now = now_ist()
+                    # Directly insert confirmed PAID ticket with amount 0.0
+                    c_loyalty.execute("""
+                        INSERT INTO payments (
+                            payment_id, bus_id, amount, cashback, status,
+                            razorpay_order_id, razorpay_payment_id, phone_number,
+                            origin, destination, passenger_count, discount_reason,
+                            created_at, updated_at, paid_at
+                        )
+                        VALUES (%s, %s, 0.00, %s, 'PAID', 'free_milestone_ride', 'free_milestone_ride', %s, %s, %s, 1, %s, %s, %s, %s)
+                    """, (
+                        free_payment_id,
+                        payload.bus_id,
+                        base_fare, # Entire fare counted as discount
+                        clean_mobile,
+                        origin,
+                        destination,
+                        reward_reason,
+                        now,
+                        now,
+                        now,
+                    ))
+
+                    # Update customer record with claimed milestone
+                    c_loyalty.execute("""
+                        UPDATE user
+                        SET last_milestone_claimed = %s,
+                            free_rides_redeemed = COALESCE(free_rides_redeemed, 0) + 1,
+                            total_tickets = COALESCE(total_tickets, 0) + 1,
+                            cashback = COALESCE(cashback, 0) + %s,
+                            updated_at = %s
+                        WHERE id = %s
+                    """, (thresh, base_fare, now, user_row["id"]))
+
+                    conn_loyalty.commit()
+                    c_loyalty.close()
+                    conn_loyalty.close()
+
+                    print(f"[FREE MILESTONE RIDE ISSUED]: {clean_mobile} -> {free_payment_id} ({reward_reason})")
+
+                    return {
+                        "success": True,
+                        "free_ride": True,
+                        "payment_id": free_payment_id,
+                        "discount_reason": reward_reason,
+                        "amount": 0.0,
+                        "message": f"Congratulations! You earned a 100% FREE RIDE for reaching Rs.{int(thresh)} in bookings!",
+                    }
+
+            c_loyalty.close()
+            conn_loyalty.close()
+        except Exception as e:
+            print("[MILESTONE CHECK ERROR]:", e)
+
+    # =========================================================================
+    # 2. Standard Booking Flow with Dynamic Instant Percentage Discount
+    # =========================================================================
     cashback_pct, min_spend = get_dynamic_cashback_rules()
-    base_fare = payload.amount
     cashback = 0.0
 
     if base_fare >= min_spend:
@@ -496,6 +611,7 @@ def create_payment(payload: CreatePaymentRequest):
 
     return {
         "success": True,
+        "free_ride": False,
         "payment_id": payment_id,
         "cashback": cashback,
         "razorpay_order_id": order["id"],
@@ -1999,13 +2115,99 @@ def delete_admin_monthly_pass(pass_id: str):
 
 
 # =========================================================================
-# --- ADMIN CUSTOMERS DIRECTORY ---
+# --- ADMIN LOYALTY MILESTONE RULES ---
+# =========================================================================
+
+@app.get("/api/v1/admin/loyalty-rules")
+def get_loyalty_rules():
+    conn = get_connection()
+    cursor = get_cursor(conn)
+    cursor.execute("SELECT * FROM loyalty_rules ORDER BY spend_threshold ASC")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return [
+        {
+            "id": r["id"],
+            "spend_threshold": float(r["spend_threshold"]),
+            "reward_rides": int(r.get("reward_rides") or 1),
+            "title": r.get("title") or f"Free Ride on Rs.{int(r['spend_threshold'])} Spend",
+            "status": r.get("status") or "ACTIVE",
+            "created_at": r.get("created_at"),
+        }
+        for r in rows
+    ]
+
+
+@app.post("/api/v1/admin/loyalty-rules")
+def create_loyalty_rule(payload: LoyaltyRuleCreateRequest):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+    threshold = float(payload.spend_threshold)
+    title = payload.title or f"Free Ride on Rs.{int(threshold)} Spend"
+    now = now_ist()
+    try:
+        cursor.execute("""
+            INSERT INTO loyalty_rules (spend_threshold, reward_rides, title, status, created_at)
+            VALUES (%s, %s, %s, 'ACTIVE', %s)
+            ON DUPLICATE KEY UPDATE title = %s, reward_rides = %s, status = 'ACTIVE'
+        """, (threshold, payload.reward_rides or 1, title, now, title, payload.reward_rides or 1))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+    return {"success": True, "message": f"Milestone rule for Rs.{int(threshold)} saved successfully"}
+
+
+@app.delete("/api/v1/admin/loyalty-rules/{rule_id}")
+def delete_loyalty_rule(rule_id: int):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+    cursor.execute("DELETE FROM loyalty_rules WHERE id = %s", (rule_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return {"success": True, "message": "Loyalty rule deleted"}
+
+
+# =========================================================================
+# --- ADMIN CUSTOMERS DIRECTORY WITH LOYALTY TRACKING ---
 # =========================================================================
 
 @app.get("/api/v1/admin/customers")
 def get_admin_customers(search: Optional[str] = None):
     conn = get_connection()
     cursor = get_cursor(conn)
+
+    # Fetch active milestone rules ordered
+    cursor.execute("SELECT id, spend_threshold, title FROM loyalty_rules WHERE status = 'ACTIVE' ORDER BY spend_threshold ASC")
+    rules = cursor.fetchall()
+
+    # Fetch all monthly passes to link with customers by mobile
+    cursor.execute("SELECT * FROM monthly_passes")
+    pass_rows = cursor.fetchall()
+    passes_by_mobile = {}
+    for p in pass_rows:
+        mob = str(p.get("mobile") or "").strip()
+        if mob:
+            passes_by_mobile[mob] = {
+                "id": p["id"],
+                "pass_id": p.get("pass_id"),
+                "name": p.get("name"),
+                "mobile": p.get("mobile"),
+                "bus_id": p.get("bus_id"),
+                "origin_city": p.get("origin_city") or "Bari Sadri",
+                "destination_city": p.get("destination_city") or "Udaipur",
+                "route": p.get("route") or f"{p.get('origin_city', 'Bari Sadri')} ➔ {p.get('destination_city', 'Udaipur')}",
+                "amount": float(p.get("amount") or 1000.0),
+                "total_rides": int(p.get("total_rides") or 62),
+                "used_rides": int(p.get("used_rides") or 0),
+                "remaining_rides": int(p.get("remaining_rides") or 0),
+                "pin": p.get("pin") or "1234",
+                "status": p.get("status") or "ACTIVE",
+                "created_at": p.get("created_at"),
+            }
+
     query = "SELECT * FROM user WHERE 1=1"
     params = []
     if search:
@@ -2017,21 +2219,55 @@ def get_admin_customers(search: Optional[str] = None):
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
-    return [
-        {
+
+    result = []
+    for r in rows:
+        total_spent = float(r.get("total_spent") or 0.0)
+        last_claimed = float(r.get("last_milestone_claimed") or 0.0)
+        mob = str(r.get("mobile_number") or "").strip()
+        m_pass = passes_by_mobile.get(mob, None)
+
+        # Find next upcoming milestone
+        next_rule = None
+        for rule in rules:
+            if float(rule["spend_threshold"]) > total_spent:
+                next_rule = rule
+                break
+
+        next_threshold = float(next_rule["spend_threshold"]) if next_rule else None
+        amount_needed = max(0.0, next_threshold - total_spent) if next_threshold else 0.0
+
+        # Calculate progress percent towards next milestone
+        prev_threshold = 0.0
+        if next_threshold:
+            for rule in rules:
+                if float(rule["spend_threshold"]) < next_threshold:
+                    prev_threshold = float(rule["spend_threshold"])
+            span = max(1.0, next_threshold - prev_threshold)
+            progress_pct = min(100, max(0, int(((total_spent - prev_threshold) / span) * 100)))
+        else:
+            progress_pct = 100
+
+        result.append({
             "id": r["id"],
             "name": r.get("name") or "Customer",
             "mobile_number": r["mobile_number"],
             "user_pin": r.get("user_pin") or "1234",
             "cashback": float(r.get("cashback") or 0.0),
             "total_tickets": int(r.get("total_tickets") or 0),
-            "total_spent": float(r.get("total_spent") or 0.0),
+            "total_spent": total_spent,
+            "last_milestone_claimed": last_claimed,
+            "free_rides_redeemed": int(r.get("free_rides_redeemed") or 0),
+            "next_threshold": next_threshold,
+            "amount_needed": amount_needed,
+            "progress_pct": progress_pct,
+            "monthly_pass": m_pass,
             "status": r.get("status") or "ACTIVE",
             "created_at": r.get("created_at"),
             "updated_at": r.get("updated_at"),
-        }
-        for r in rows
-    ]
+        })
+
+    return result
 
 
 if __name__ == "__main__":

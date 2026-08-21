@@ -48,6 +48,7 @@ def init_database():
         origin VARCHAR(100),
         destination VARCHAR(100),
         passenger_count INT DEFAULT 1,
+        discount_reason VARCHAR(255),
         created_at VARCHAR(50),
         updated_at VARCHAR(50),
         paid_at VARCHAR(50)
@@ -74,9 +75,23 @@ def init_database():
         cashback DECIMAL(10, 2) DEFAULT 0.00,
         total_tickets INT DEFAULT 0,
         total_spent DECIMAL(10, 2) DEFAULT 0.00,
+        last_milestone_claimed DECIMAL(10, 2) DEFAULT 0.00,
+        free_rides_redeemed INT DEFAULT 0,
         status VARCHAR(20) DEFAULT 'ACTIVE',
         created_at VARCHAR(50),
         updated_at VARCHAR(50)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+
+    # Table: loyalty_rules (Spend Milestones)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS loyalty_rules (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        spend_threshold DECIMAL(10, 2) NOT NULL UNIQUE,
+        reward_rides INT DEFAULT 1,
+        title VARCHAR(100) DEFAULT 'Free Ride Milestone',
+        status VARCHAR(20) DEFAULT 'ACTIVE',
+        created_at VARCHAR(50)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
 
