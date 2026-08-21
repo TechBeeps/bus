@@ -329,8 +329,8 @@ export default function QrScanner() {
           <button
             onClick={() => setActiveTab("scanner")}
             className={`py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition-all cursor-pointer ${activeTab === "scanner"
-                ? "bg-indigo-600 text-white shadow-md"
-                : "text-slate-600 hover:text-slate-900"
+              ? "bg-indigo-600 text-white shadow-md"
+              : "text-slate-600 hover:text-slate-900"
               }`}
           >
             <Camera className="w-4 h-4" />
@@ -343,8 +343,8 @@ export default function QrScanner() {
               setActiveTab("manual_bus");
             }}
             className={`py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition-all cursor-pointer ${activeTab === "manual_bus"
-                ? "bg-indigo-600 text-white shadow-md"
-                : "text-slate-600 hover:text-slate-900"
+              ? "bg-indigo-600 text-white shadow-md"
+              : "text-slate-600 hover:text-slate-900"
               }`}
           >
             <Bus className="w-4 h-4" />
@@ -587,8 +587,8 @@ export default function QrScanner() {
                       key={bId}
                       onClick={() => setSelectedBus(bus)}
                       className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between ${isSelected
-                          ? "border-indigo-600 bg-indigo-50/60 shadow-sm"
-                          : "border-slate-200 hover:border-slate-300 bg-slate-50/40 hover:bg-slate-50"
+                        ? "border-indigo-600 bg-indigo-50/60 shadow-sm"
+                        : "border-slate-200 hover:border-slate-300 bg-slate-50/40 hover:bg-slate-50"
                         }`}
                     >
                       <div className="space-y-1 flex-1 pr-3">
@@ -615,8 +615,8 @@ export default function QrScanner() {
                       <div className="pl-2">
                         <div
                           className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${isSelected
-                              ? "border-indigo-600 bg-indigo-600 text-white"
-                              : "border-slate-300 bg-white"
+                            ? "border-indigo-600 bg-indigo-600 text-white"
+                            : "border-slate-300 bg-white"
                             }`}
                         >
                           {isSelected && <CheckCircle2 className="w-3.5 h-3.5" />}
@@ -654,7 +654,7 @@ export default function QrScanner() {
                     e.currentTarget.style.display = "none";
                   }}
                 />
-                <Bus className="w-6 h-6 text-white" />
+
               </div>
               <div>
                 <h3 className="font-bold text-xs text-white">Install Shree Mateshwari</h3>
