@@ -14,6 +14,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import razorpay
 
+import json
+
 from app.database import get_connection, get_cursor
 
 IST = ZoneInfo("Asia/Kolkata")
@@ -912,10 +914,115 @@ def create_monthly_pass(payload: MonthlyPassPurchaseRequest):
     }
 
 
+# @app.post("/api/v1/monthly-pass/success")
+# def monthly_pass_success(payload: dict):
+#     conn = get_connection()
+#     cursor = get_cursor(conn)
+    
+#     print(payload["location"])
+
+
+#     # Check existing active pass
+#     cursor.execute("""
+#         SELECT *
+#         FROM monthly_passes
+#         WHERE mobile = %s
+#         AND status = 'ACTIVE'
+#     """, (payload["mobile"],))
+
+#     existing_pass = cursor.fetchone()
+
+#     # Existing Pass Found
+#     if existing_pass:
+#         cursor.execute("""
+#             UPDATE monthly_passes
+#             SET
+#                 total_rides = total_rides + 62,
+#                 remaining_rides = remaining_rides + 62,
+#                 amount = amount + 1000
+#             WHERE mobile = %s
+#         """, (payload["mobile"],))
+
+#         conn.commit()
+
+#         cursor.execute("""
+#             SELECT remaining_rides, pin
+#             FROM monthly_passes
+#             WHERE mobile = %s
+#         """, (payload["mobile"],))
+
+#         updated_pass = cursor.fetchone()
+#         cursor.close()
+#         conn.close()
+
+#         return {
+#             "success": True,
+#             "message": "Existing pass updated",
+#             "pin": updated_pass["pin"],
+#             "rides": updated_pass["remaining_rides"],
+#         }
+
+#     # New Pass
+#     pin = str(random.randint(1000, 9999))
+
+#     cursor.execute("""
+#         INSERT INTO monthly_passes (
+#             pass_id,
+#             bus_id,
+#             name,
+#             mobile,
+#             pin,
+#             amount,
+#             location,
+#             total_rides,
+#             remaining_rides,
+#             created_at
+#         )
+#         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+#     """, (
+#         payload["payment_id"],
+#         payload["bus_id"],
+#         payload["name"],
+#         payload["mobile"],
+#         pin,
+#         1000,
+#         payload["location"],
+#         62,
+#         62,
+#         now_ist(),
+#     ))
+
+#     # Auto-register / update unique customer record
+#     register_or_update_customer(
+#         cursor=cursor,
+#         mobile=payload["mobile"],
+#         name=payload.get("name") or "Customer",
+#         cashback=0.0,
+#         amount=1000.0,
+#     )
+
+#     conn.commit()
+#     cursor.close()
+#     conn.close()
+
+#     return {
+#         "success": True,
+#         "message": "New pass created",
+#         "pin": pin,
+#         "rides": 62,
+#     }
+
+
+
 @app.post("/api/v1/monthly-pass/success")
 def monthly_pass_success(payload: dict):
     conn = get_connection()
     cursor = get_cursor(conn)
+    
+    print(payload["location"])
+
+    # Convert location dict to JSON string
+    location_json = json.dumps(payload["location"])
 
     # Check existing active pass
     cursor.execute("""
@@ -934,9 +1041,10 @@ def monthly_pass_success(payload: dict):
             SET
                 total_rides = total_rides + 62,
                 remaining_rides = remaining_rides + 62,
-                amount = amount + 1000
+                amount = amount + 1000,
+                location = %s
             WHERE mobile = %s
-        """, (payload["mobile"],))
+        """, (location_json, payload["mobile"]))
 
         conn.commit()
 
@@ -968,11 +1076,12 @@ def monthly_pass_success(payload: dict):
             mobile,
             pin,
             amount,
+            location,
             total_rides,
             remaining_rides,
             created_at
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (
         payload["payment_id"],
         payload["bus_id"],
@@ -980,6 +1089,7 @@ def monthly_pass_success(payload: dict):
         payload["mobile"],
         pin,
         1000,
+        location_json,  # Use the JSON string here
         62,
         62,
         now_ist(),
@@ -1004,7 +1114,6 @@ def monthly_pass_success(payload: dict):
         "pin": pin,
         "rides": 62,
     }
-
 
 @app.post("/api/v1/monthly-pass/use")
 def use_monthly_pass(payload: dict):
@@ -1066,7 +1175,7 @@ def use_monthly_pass(payload: dict):
                     "success": False,
                     "deducted": False,
                     "remaining_rides": pass_row["remaining_rides"],
-                    "message": "Monthly Pass already used within 3 hours",
+                    "message": "Monthly git Pass already used within 3 hours",
                 }
         except Exception as e:
             print("Time parse error:", e)
