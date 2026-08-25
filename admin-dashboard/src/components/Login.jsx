@@ -132,16 +132,7 @@ export default function Login({ onLoginSuccess }) {
           </form>
 
           {/* Quick Demo Fill Helper */}
-          <div className="mt-6 pt-6 border-t border-slate-800/60 text-center">
-            <button
-              type="button"
-              onClick={handleQuickDemo}
-              className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors inline-flex items-center space-x-1.5 font-medium bg-indigo-950/60 border border-indigo-800/50 px-3 py-1.5 rounded-lg"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Fill Default Demo Credentials (admin / admin123)</span>
-            </button>
-          </div>
+
         </div>
 
         <p className="text-center text-xs text-slate-500 mt-6">
