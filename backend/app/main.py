@@ -40,6 +40,17 @@ razorpay_client = razorpay.Client(
     auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)
 )
 
+print("Razorpay client created:", razorpay_client)
+
+try:
+    result = razorpay_client.order.all()
+    print("Razorpay connected/authenticated successfully")
+    print(result)
+except Exception as e:
+    print("Razorpay authentication failed:", e)
+
+
+
 # CORS configuration for Web-App access
 app.add_middleware(
     CORSMiddleware,
