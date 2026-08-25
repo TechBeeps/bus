@@ -1,6 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { View, ActivityIndicator } from 'react-native';
+
+import LoginScreen from './screens/LoginScreen';
 import ShiftSelectScreen from './screens/ShiftSelectScreen';
 import LiveVerificationScreen from './screens/LiveVerificationScreen';
 import NotificationScreen from './screens/NotificationScreen';
@@ -9,6 +13,7 @@ import * as Device from 'expo-device';
 import { createNavigationContainerRef } from '@react-navigation/native';
 import { Platform } from 'react-native';
 import colors from './theme/colors';
+
 const Stack = createNativeStackNavigator();
 const navigationRef = createNavigationContainerRef();
 
@@ -22,6 +27,7 @@ Notifications.setNotificationHandler({
 
 export default function App() {
   const responseListener = useRef();
+  const [initialRoute, setInitialRoute] = useState(null);
 
   const API_PUSH_TOKEN_URL = 'https://api.shreemateshwaribus.com/api/v1/push-token';
 
@@ -33,19 +39,34 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token }),
       });
-
     } catch (e) {
       console.log('Failed to send push token to server', e);
     }
   };
 
   useEffect(() => {
-    const setup = async () => {
+    // Check authentication status on startup
+    const checkAuthStatus = async () => {
+      try {
+        const session = await AsyncStorage.getItem('@conductor_session');
+        if (session) {
+          setInitialRoute('ShiftSelect');
+        } else {
+          setInitialRoute('Login');
+        }
+      } catch (e) {
+        setInitialRoute('Login');
+      }
+    };
+
+    checkAuthStatus();
+
+    const setupNotifications = async () => {
       if (Device.isDevice) {
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
         let finalStatus = existingStatus;
 
-           if (Platform.OS === 'android') {
+        if (Platform.OS === 'android') {
           await Notifications.setNotificationChannelAsync('default', {
             name: 'default',
             importance: Notifications.AndroidImportance.MAX,
@@ -59,74 +80,57 @@ export default function App() {
         }
 
         if (finalStatus === 'granted') {
-
           const tokenData = await Notifications.getExpoPushTokenAsync({
             projectId: '4016f9fc-6631-4114-bfcd-bf8ef9a0c31d',
           });
-
           const token = tokenData?.data;
-
           sendTokenToServer(token);
         }
-
-
-      } else {
-        console.log('Must use physical device for push notifications');
       }
     };
 
-    setup();
+    setupNotifications();
 
- responseListener.current =
-  Notifications.addNotificationResponseReceivedListener(async response => {
-    const data =
-      response.notification?.request?.content?.data || {};
-    if (navigationRef.isReady()) {
-      navigationRef.navigate('Notification', {
-        notification: response.notification,
-      });
-
-      await Notifications.clearLastNotificationResponseAsync();
-    }
-  });
-
-
-const checkInitialNotification = async () => {
-  try {
-    const response =
-      await Notifications.getLastNotificationResponseAsync();
-
-    await Notifications.clearLastNotificationResponseAsync();
-
-    if (!response.notification.request.content.data?.razorpay_payment_id) {
-
-      return;
-    }
-
-    const navigateToNotification = () => {
-      if (!navigationRef.isReady()) {
-        return false;
-      }
-
-      navigationRef.navigate('Notification', {
-        notification: response.notification,
-      });
-
-      return true;
-    };
-
-    if (!navigateToNotification()) {
-      const interval = setInterval(() => {
-        if (navigateToNotification()) {
-          clearInterval(interval);
+    responseListener.current =
+      Notifications.addNotificationResponseReceivedListener(async (response) => {
+        if (navigationRef.isReady()) {
+          navigationRef.navigate('Notification', {
+            notification: response.notification,
+          });
+          await Notifications.clearLastNotificationResponseAsync();
         }
-      }, 100);
-    }
+      });
 
-  } catch (error) {
-    console.log('Initial notification error:',error);
-  }
-};
+    const checkInitialNotification = async () => {
+      try {
+        const response = await Notifications.getLastNotificationResponseAsync();
+        await Notifications.clearLastNotificationResponseAsync();
+
+        if (!response?.notification?.request?.content?.data?.razorpay_payment_id) {
+          return;
+        }
+
+        const navigateToNotification = () => {
+          if (!navigationRef.isReady()) {
+            return false;
+          }
+          navigationRef.navigate('Notification', {
+            notification: response.notification,
+          });
+          return true;
+        };
+
+        if (!navigateToNotification()) {
+          const interval = setInterval(() => {
+            if (navigateToNotification()) {
+              clearInterval(interval);
+            }
+          }, 100);
+        }
+      } catch (error) {
+        console.log('Initial notification error:', error);
+      }
+    };
 
     checkInitialNotification();
 
@@ -137,10 +141,26 @@ const checkInitialNotification = async () => {
     };
   }, []);
 
+  if (!initialRoute) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: colors.primary,
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <ActivityIndicator size="large" color={colors.primaryText} />
+      </View>
+    );
+  }
+
   return (
     <NavigationContainer ref={navigationRef}>
-      <Stack.Navigator initialRouteName="ShiftSelect" screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="ShiftSelect" component={ShiftSelectScreen}  />
+      <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="ShiftSelect" component={ShiftSelectScreen} />
         <Stack.Screen name="LiveVerification" component={LiveVerificationScreen} />
         <Stack.Screen name="Notification" component={NotificationScreen} />
       </Stack.Navigator>

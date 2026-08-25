@@ -7,9 +7,10 @@ import requests
 import uvicorn
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from typing import Optional
+from typing import Optional, Union, Any
 
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Depends
+
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import razorpay
@@ -133,6 +134,14 @@ class CityUpdateRequest(BaseModel):
     status: Optional[str] = "ACTIVE"
 
 
+class ConductorLoginRequest(BaseModel):
+    identifier: Optional[str] = None
+    username: Optional[str] = None
+    mobile: Optional[str] = None
+    email: Optional[str] = None
+    password: str
+
+
 class ConductorCreateRequest(BaseModel):
     name: str
     mobile: str
@@ -140,6 +149,7 @@ class ConductorCreateRequest(BaseModel):
     password: str
     gender: Optional[str] = "Male"
     assigned_bus_id: Optional[str] = None
+
 
 
 class ConductorUpdateRequest(BaseModel):
@@ -196,6 +206,7 @@ class AdminPassCreateRequest(BaseModel):
     amount: Optional[float] = 1000.0
     total_rides: Optional[int] = 62
     pin: Optional[str] = None
+    location: Optional[Any] = None
 
 
 class AdminPassUpdateRequest(BaseModel):
@@ -210,6 +221,7 @@ class AdminPassUpdateRequest(BaseModel):
     used_rides: Optional[int] = None
     pin: Optional[str] = None
     status: Optional[str] = "ACTIVE"
+
 
 
 class LoyaltyRuleCreateRequest(BaseModel):
@@ -1536,11 +1548,143 @@ def delete_city(city_id: int):
 
 
 # =========================================================================
-# --- DYNAMIC CONDUCTORS MANAGEMENT ---
+# --- DYNAMIC CONDUCTORS MANAGEMENT & AUTHENTICATION ---
 # =========================================================================
+
+@app.post("/api/v1/conductor/login")
+@app.post("/api/v1/conductors/login")
+def conductor_login(payload: ConductorLoginRequest):
+    identifier = (payload.identifier or payload.username or payload.mobile or payload.email or "").strip()
+    password = payload.password.strip() if payload.password else ""
+
+    if not identifier or not password:
+        raise HTTPException(status_code=400, detail="Mobile/Email and password are required")
+
+    conn = get_connection()
+    cursor = get_cursor(conn)
+
+    # Search by mobile or email
+    cursor.execute("""
+        SELECT * FROM conductors
+        WHERE (mobile = %s OR email = %s)
+    """, (identifier, identifier))
+
+    conductor = cursor.fetchone()
+
+    if not conductor or conductor["password"] != password:
+        cursor.close()
+        conn.close()
+        raise HTTPException(status_code=401, detail="Invalid mobile number/email or password")
+
+    if conductor.get("status") != "ACTIVE":
+        cursor.close()
+        conn.close()
+        raise HTTPException(status_code=403, detail="Conductor account is inactive or blocked. Please contact admin.")
+
+    # Fetch assigned bus details if any
+    assigned_bus = None
+    assigned_bus_id = conductor.get("assigned_bus_id")
+    if assigned_bus_id:
+        cursor.execute("""
+            SELECT * FROM buses
+            WHERE bus_id = %s OR bus_number = %s
+        """, (assigned_bus_id, assigned_bus_id))
+        bus_row = cursor.fetchone()
+        if bus_row:
+            assigned_bus = {
+                "bus_id": bus_row.get("bus_id"),
+                "bus_no": bus_row.get("bus_number") or bus_row.get("bus_no"),
+                "bus_number": bus_row.get("bus_number") or bus_row.get("bus_no"),
+                "origin": bus_row.get("origin_city") or bus_row.get("origin"),
+                "destination": bus_row.get("destination_city") or bus_row.get("destination"),
+                "origin_city": bus_row.get("origin_city") or bus_row.get("origin"),
+                "destination_city": bus_row.get("destination_city") or bus_row.get("destination"),
+                "fare_amount": float(bus_row.get("fare_amount", 50.0)),
+                "status": bus_row.get("status", "ACTIVE"),
+            }
+
+    cursor.close()
+    conn.close()
+
+    conductor_data = {
+        "id": conductor["id"],
+        "conductor_id": conductor["conductor_id"],
+        "name": conductor["name"],
+        "mobile": conductor["mobile"],
+        "email": conductor.get("email", ""),
+        "gender": conductor.get("gender", "Male"),
+        "status": conductor.get("status", "ACTIVE"),
+        "assigned_bus_id": assigned_bus_id,
+    }
+
+    return {
+        "success": True,
+        "message": "Login successful",
+        "token": f"conductor-token-{conductor['conductor_id']}-{int(time.time())}",
+        "conductor": conductor_data,
+        "assigned_bus": assigned_bus,
+    }
+
+
+@app.get("/api/v1/conductor/my-bus/{conductor_id}")
+def get_conductor_assigned_bus(conductor_id: str):
+    conn = get_connection()
+    cursor = get_cursor(conn)
+
+    is_num = str(conductor_id).isdigit()
+    where_sql = "WHERE conductor_id = %s OR id = %s" if is_num else "WHERE conductor_id = %s"
+    target_args = (str(conductor_id), int(conductor_id)) if is_num else (str(conductor_id),)
+
+    cursor.execute(f"SELECT * FROM conductors {where_sql}", target_args)
+    conductor = cursor.fetchone()
+
+    if not conductor:
+        cursor.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Conductor not found")
+
+    assigned_bus = None
+    assigned_bus_id = conductor.get("assigned_bus_id")
+    if assigned_bus_id:
+        cursor.execute("""
+            SELECT * FROM buses
+            WHERE bus_id = %s OR bus_number = %s
+        """, (assigned_bus_id, assigned_bus_id))
+        bus_row = cursor.fetchone()
+        if bus_row:
+            assigned_bus = {
+                "bus_id": bus_row.get("bus_id"),
+                "bus_no": bus_row.get("bus_number") or bus_row.get("bus_no"),
+                "bus_number": bus_row.get("bus_number") or bus_row.get("bus_no"),
+                "origin": bus_row.get("origin_city") or bus_row.get("origin"),
+                "destination": bus_row.get("destination_city") or bus_row.get("destination"),
+                "origin_city": bus_row.get("origin_city") or bus_row.get("origin"),
+                "destination_city": bus_row.get("destination_city") or bus_row.get("destination"),
+                "fare_amount": float(bus_row.get("fare_amount", 50.0)),
+                "status": bus_row.get("status", "ACTIVE"),
+            }
+
+    cursor.close()
+    conn.close()
+
+    return {
+        "success": True,
+        "conductor": {
+            "id": conductor["id"],
+            "conductor_id": conductor["conductor_id"],
+            "name": conductor["name"],
+            "mobile": conductor["mobile"],
+            "email": conductor.get("email", ""),
+            "status": conductor.get("status", "ACTIVE"),
+            "assigned_bus_id": assigned_bus_id,
+        },
+        "assigned_bus": assigned_bus,
+    }
+
 
 @app.get("/api/v1/conductors")
 def get_conductors():
+
     conn = get_connection()
     cursor = get_cursor(conn)
     cursor.execute("SELECT * FROM conductors ORDER BY id DESC")
@@ -2067,8 +2211,8 @@ def get_admin_monthly_passes(status: Optional[str] = None, search: Optional[str]
 
     if search:
         search_pat = f"%{search}%"
-        query += " AND (name LIKE %s OR mobile LIKE %s OR pass_id LIKE %s OR bus_id LIKE %s)"
-        params.extend([search_pat, search_pat, search_pat, search_pat])
+        query += " AND (name LIKE %s OR mobile LIKE %s OR pass_id LIKE %s OR bus_id LIKE %s OR origin_city LIKE %s OR destination_city LIKE %s OR route LIKE %s OR location LIKE %s)"
+        params.extend([search_pat, search_pat, search_pat, search_pat, search_pat, search_pat, search_pat, search_pat])
 
     query += " ORDER BY id DESC"
 
@@ -2084,9 +2228,36 @@ def get_admin_monthly_passes(status: Optional[str] = None, search: Optional[str]
         item["total_rides"] = int(item.get("total_rides") or 62)
         item["used_rides"] = int(item.get("used_rides") or 0)
         item["remaining_rides"] = int(item.get("remaining_rides") or 62)
+
+        # Parse location field if JSON string or dict
+        loc = item.get("location")
+        item["address"] = ""
+        item["lat"] = None
+        item["lng"] = None
+        item["location_data"] = None
+        if loc:
+            if isinstance(loc, str) and loc.strip():
+                try:
+                    loc_obj = json.loads(loc)
+                    if isinstance(loc_obj, dict):
+                        item["location_data"] = loc_obj
+                        item["address"] = loc_obj.get("address") or ""
+                        item["lat"] = loc_obj.get("lat")
+                        item["lng"] = loc_obj.get("lng")
+                    else:
+                        item["address"] = str(loc_obj)
+                except Exception:
+                    item["address"] = str(loc)
+            elif isinstance(loc, dict):
+                item["location_data"] = loc
+                item["address"] = loc.get("address") or ""
+                item["lat"] = loc.get("lat")
+                item["lng"] = loc.get("lng")
+
         passes.append(item)
 
     return passes
+
 
 
 @app.post("/api/v1/admin/monthly-passes")
@@ -2102,6 +2273,22 @@ def create_admin_monthly_pass(payload: AdminPassCreateRequest):
     dest = payload.destination_city or "Udaipur"
     route_str = payload.route or f"{origin} ➔ {dest}"
 
+    # Default Udaipur Office Location
+    default_admin_location = {
+        "lat": 24.571271,
+        "lng": 73.691544,
+        "address": "Bus Operator Head Office, City Bus Station, Udaipur, Rajasthan 313001, India",
+        "timestamp": int(time.time() * 1000),
+    }
+
+    if payload.location:
+        if isinstance(payload.location, dict):
+            location_json = json.dumps(payload.location)
+        else:
+            location_json = str(payload.location)
+    else:
+        location_json = json.dumps(default_admin_location)
+
     # Check if active pass exists for mobile
     cursor.execute("SELECT id FROM monthly_passes WHERE mobile = %s AND status = 'ACTIVE'", (payload.mobile,))
     existing = cursor.fetchone()
@@ -2110,16 +2297,17 @@ def create_admin_monthly_pass(payload: AdminPassCreateRequest):
         cursor.execute("""
             UPDATE monthly_passes
             SET total_rides = total_rides + %s, remaining_rides = remaining_rides + %s, amount = amount + %s, pin = %s,
-                origin_city = %s, destination_city = %s, route = %s
+                origin_city = %s, destination_city = %s, route = %s,
+                location = COALESCE(NULLIF(location, ''), %s)
             WHERE id = %s
-        """, (rides, rides, amount, pin, origin, dest, route_str, existing["id"]))
+        """, (rides, rides, amount, pin, origin, dest, route_str, location_json, existing["id"]))
     else:
         # Create new
         cursor.execute("""
             INSERT INTO monthly_passes (
-                pass_id, bus_id, origin_city, destination_city, route, name, mobile, pin, amount, total_rides, used_rides, remaining_rides, status, created_at
+                pass_id, bus_id, origin_city, destination_city, route, name, mobile, pin, amount, location, total_rides, used_rides, remaining_rides, status, created_at
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, %s, 'ACTIVE', %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, %s, 'ACTIVE', %s)
         """, (
             pass_id,
             payload.bus_id or "ROUTE-PASS",
@@ -2130,10 +2318,12 @@ def create_admin_monthly_pass(payload: AdminPassCreateRequest):
             payload.mobile,
             pin,
             amount,
+            location_json,
             rides,
             rides,
             now_ist(),
         ))
+
 
     # Auto-register / update customer in user table
     register_or_update_customer(

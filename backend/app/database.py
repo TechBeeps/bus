@@ -1,5 +1,8 @@
 import os
+import urllib.parse
 from dotenv import load_dotenv
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 # Locate and load environment configuration
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -14,6 +17,39 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 DB_NAME = os.getenv("DB_NAME", "bus_ticketing")
 
 print(f"[DATABASE] MySQL Target -> {DB_USER}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+
+# URL encode user and password for safe SQLAlchemy URI
+encoded_user = urllib.parse.quote_plus(DB_USER)
+encoded_password = urllib.parse.quote_plus(DB_PASSWORD)
+
+# SQLAlchemy Database URL (supports pymysql or mysqlconnector)
+try:
+    import pymysql
+    SQLALCHEMY_DATABASE_URL = (
+        f"mysql+pymysql://{encoded_user}:{encoded_password}@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
+    )
+except ImportError:
+    SQLALCHEMY_DATABASE_URL = (
+        f"mysql+mysqlconnector://{encoded_user}:{encoded_password}@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
+    )
+
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+)
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def get_db():
+    """FastAPI dependency for SQLAlchemy database sessions."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 
 def get_connection(database: str = DB_NAME):
     """
@@ -49,6 +85,7 @@ def get_connection(database: str = DB_NAME):
             config["database"] = database
         return pymysql.connect(**config)
 
+
 def get_cursor(conn):
     """
     Returns a dictionary cursor (allowing row['column_name'] access).
@@ -63,3 +100,14 @@ def get_cursor(conn):
             return conn.cursor(pymysql.cursors.DictCursor)
         except Exception:
             return conn.cursor()
+
+
+def create_all_tables():
+    """
+    Creates all tables defined in SQLAlchemy models if they do not already exist.
+    """
+    try:
+        from app.models.schema import Base
+    except ImportError:
+        from models.schema import Base
+    Base.metadata.create_all(bind=engine)

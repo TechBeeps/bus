@@ -22,3 +22,13 @@ services:
     depends_on:
       - bus-backend
 
+  admin-dashboard:
+    build:
+      context: .
+      dockerfile: admin-dashboard/Dockerfile
+    container_name: admin-dashboard
+    restart: unless-stopped
+    ports:
+      - "3005:80"
+    depends_on:
+      - bus-backend

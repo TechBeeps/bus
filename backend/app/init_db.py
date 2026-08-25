@@ -3,14 +3,15 @@ import sys
 
 # Support direct execution from any working directory
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-if CURRENT_DIR not in sys.path:
-    sys.path.insert(0, CURRENT_DIR)
-
+BACKEND_DIR = os.path.dirname(CURRENT_DIR)
+for p in (CURRENT_DIR, BACKEND_DIR):
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
 try:
-    from app.database import get_connection, DB_NAME, DB_HOST, DB_PORT, DB_USER
+    from app.database import get_connection, DB_NAME, DB_HOST, DB_PORT, DB_USER, create_all_tables
 except ImportError:
-    from database import get_connection, DB_NAME, DB_HOST, DB_PORT, DB_USER
+    from database import get_connection, DB_NAME, DB_HOST, DB_PORT, DB_USER, create_all_tables
 
 
 
@@ -31,7 +32,14 @@ def init_database():
     except Exception as e:
         print(f"Warning during database bootstrap: {e}")
 
-    # Step 2: Connect to target database and create tables
+    # Step 2: Auto-create tables via SQLAlchemy models metadata
+    try:
+        create_all_tables()
+        print(f"SQLAlchemy models verified/created for database `{DB_NAME}`.")
+    except Exception as e:
+        print(f"SQLAlchemy auto-create warning: {e}")
+
+    # Step 3: Connect to target database and verify MySQL tables & column migrations
     conn = get_connection(database=DB_NAME)
     cursor = conn.cursor()
 
@@ -107,6 +115,10 @@ def init_database():
         mobile VARCHAR(20) NOT NULL UNIQUE,
         pin VARCHAR(10) NOT NULL,
         amount DECIMAL(10, 2) DEFAULT 1000.00,
+        location TEXT DEFAULT NULL,
+        origin_city VARCHAR(255) DEFAULT '',
+        destination_city VARCHAR(255) DEFAULT '',
+        route VARCHAR(255) DEFAULT '',
         total_rides INT DEFAULT 62,
         used_rides INT DEFAULT 0,
         remaining_rides INT DEFAULT 62,
@@ -114,6 +126,21 @@ def init_database():
         created_at VARCHAR(50)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
+
+    # Check & migrate any missing columns in monthly_passes if table existed previously
+    try:
+        cursor.execute("SHOW COLUMNS FROM monthly_passes")
+        mp_cols = [r[0] if isinstance(r, tuple) else r["Field"] for r in cursor.fetchall()]
+        if "location" not in mp_cols:
+            cursor.execute("ALTER TABLE monthly_passes ADD COLUMN location TEXT DEFAULT NULL")
+        if "origin_city" not in mp_cols:
+            cursor.execute("ALTER TABLE monthly_passes ADD COLUMN origin_city VARCHAR(255) DEFAULT ''")
+        if "destination_city" not in mp_cols:
+            cursor.execute("ALTER TABLE monthly_passes ADD COLUMN destination_city VARCHAR(255) DEFAULT ''")
+        if "route" not in mp_cols:
+            cursor.execute("ALTER TABLE monthly_passes ADD COLUMN route VARCHAR(255) DEFAULT ''")
+    except Exception as e:
+        print(f"Note on monthly_passes columns check: {e}")
 
     # Table: pass_usage
     cursor.execute("""
@@ -284,6 +311,20 @@ def init_database():
             INSERT IGNORE INTO conductor_shift_logs (shift_id, bus_id, bus_number, conductor_id, conductor_name, shift_date, start_time, end_time, collection_amount, tickets_count, status, created_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (sid, bid, bno, cid, cname, sdate, stime, etime, col, tcount, st, "2026-08-21 00:00:00"))
+
+    # 7. Loyalty Rules Default Seeds
+    cursor.execute("SELECT COUNT(*) AS cnt FROM loyalty_rules")
+    cnt_row = cursor.fetchone()
+    count_rules = cnt_row[0] if isinstance(cnt_row, tuple) else cnt_row["cnt"]
+    if count_rules == 0:
+        cursor.execute("""
+            INSERT INTO loyalty_rules (spend_threshold, reward_rides, title, status, created_at)
+            VALUES
+                (1500.00, 1, 'Free Ride on Rs.1500 Spend', 'ACTIVE', '2026-08-21 00:00:00'),
+                (3000.00, 1, 'Free Ride on Rs.3000 Spend', 'ACTIVE', '2026-08-21 00:00:00'),
+                (4500.00, 1, 'Free Ride on Rs.4500 Spend', 'ACTIVE', '2026-08-21 00:00:00'),
+                (5000.00, 1, 'Free Ride on Rs.5000 Spend', 'ACTIVE', '2026-08-21 00:00:00')
+        """)
 
     conn.commit()
     cursor.close()

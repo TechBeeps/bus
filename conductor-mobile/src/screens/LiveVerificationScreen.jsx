@@ -69,24 +69,26 @@ export default function LiveVerificationScreen({ route, navigation }) {
       try {
         let tickets = [];
         try {
-          const res = await fetch(`https://api.shreemateshwaribus.com/api/v1/tickets/${busId}`);
-       
-          if (res && res.status === 200) {
-          
-            const data = await res.json();
+          let res;
+          try {
+            res = await fetch(`http://192.168.1.8:8000/api/v1/tickets/${busId}`);
+          } catch (e1) {
+            res = await fetch(`https://api.shreemateshwaribus.com/api/v1/tickets/${busId}`);
+          }
 
+          if (res && res.status === 200) {
+            const data = await res.json();
             tickets = data.data || [];
             setIsOnline(true);
           } else {
-    
             tickets = [];
             setIsOnline(false);
           }
         } catch (err) {
-
           tickets = [];
           setIsOnline(false);
         }
+
 
         await processIncomingTickets(tickets, saveKnownIds);
 
@@ -178,11 +180,20 @@ export default function LiveVerificationScreen({ route, navigation }) {
       <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
 
       <View style={styles.header}>
-        <View>
-          <Text style={styles.busTitle}>{busNo}</Text>
-          <View style={styles.statusRow}>
-            <View style={[styles.statusDot, { backgroundColor: isOnline ? colors.success : colors.warning }]} />
-            <Text style={styles.statusText}>{isOnline ? 'LIVE SYNC' : 'OFFLINE MODE'}</Text>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity
+            style={styles.exitShiftButton}
+            onPress={() => navigation.navigate('ShiftSelect')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.exitShiftText}>‹ Shift</Text>
+          </TouchableOpacity>
+          <View>
+            <Text style={styles.busTitle}>{busNo || busId}</Text>
+            <View style={styles.statusRow}>
+              <View style={[styles.statusDot, { backgroundColor: isOnline ? colors.success : colors.warning }]} />
+              <Text style={styles.statusText}>{isOnline ? 'LIVE SYNC' : 'OFFLINE MODE'}</Text>
+            </View>
           </View>
         </View>
 
@@ -191,6 +202,7 @@ export default function LiveVerificationScreen({ route, navigation }) {
           <Text style={styles.collectionValue}>₹{totalCollection}</Text>
         </View>
       </View>
+
 
       <View style={styles.feedContainer}>
         <Text style={styles.sectionHeader}>Verified Payments ({verifiedTickets.length})</Text>
@@ -401,9 +413,29 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
+  },
+  exitShiftButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  exitShiftText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
   busTitle: {
     color: colors.textOnPrimary,
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
   },
   statusRow: {
@@ -411,6 +443,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 4,
   },
+
   statusDot: {
     width: 8,
     height: 8,
