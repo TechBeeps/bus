@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,10 @@ import {
   Platform,
   StyleSheet,
   StatusBar,
-  Alert,
+  Image,
+  BackHandler,
+  Modal,
+  Pressable,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../theme/colors';
@@ -24,6 +27,25 @@ export default function LoginScreen({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [showExitAppModal, setShowExitAppModal] = useState(false);
+
+  useEffect(() => {
+    const backAction = () => {
+      if (showExitAppModal) {
+        setShowExitAppModal(false);
+        return true;
+      }
+      setShowExitAppModal(true);
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      backAction
+    );
+
+    return () => backHandler.remove();
+  }, [showExitAppModal]);
 
   const handleLogin = async () => {
     const cleanIdentifier = identifier.trim();
@@ -51,14 +73,13 @@ export default function LoginScreen({ navigation }) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
-
       } catch (err) {
-        // Fallback to local dev server if online domain is unreachable
         setErrorMsg('Connection failed. Please check internet connectivity and try again.');
+        setLoading(false);
+        return;
       }
 
       const data = await response.json();
-      console.log(data)
 
       if (!response.ok || !data.success) {
         const message = data.detail || data.message || 'Invalid mobile/email or password';
@@ -74,7 +95,7 @@ export default function LoginScreen({ navigation }) {
         await AsyncStorage.removeItem('@conductor_assigned_bus');
       }
 
-      // Navigate to Shift Selection / Assigned Bus screen
+      // Navigate to Shift Selection / Home screen
       navigation.replace('ShiftSelect', {
         conductor: data.conductor,
         assignedBus: data.assigned_bus,
@@ -88,7 +109,7 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
+      <StatusBar barStyle="light-content" backgroundColor="#1e1b4b" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}
@@ -96,26 +117,27 @@ export default function LoginScreen({ navigation }) {
         <ScrollView
           contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {/* Top Brand Header */}
+          {/* Brand Header */}
           <View style={styles.brandHeader}>
             <View style={styles.logoBadge}>
-              <Text style={styles.logoText}>🚌</Text>
+              <Image
+                source={require('../../assets/icon.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </View>
             <Text style={styles.brandTitle}>SHREE MATESHWARI</Text>
-            <Text style={styles.brandSubtitle}>BUS SERVICE • CONDUCTOR APP</Text>
-            <View style={styles.roleTag}>
-              <View style={styles.roleDot} />
-              <Text style={styles.roleTagText}>AUTHORIZED CONDUCTOR LOGIN</Text>
+            <View style={styles.portalPill}>
+              <View style={styles.portalDot} />
+              <Text style={styles.portalPillText}>CONDUCTOR PORTAL</Text>
             </View>
           </View>
 
-          {/* Login Card */}
+          {/* Clean Login Card */}
           <View style={styles.card}>
-            <Text style={styles.cardHeading}>Sign In to Your Account</Text>
-            <Text style={styles.cardDescription}>
-              Enter your registered Mobile Number or Email to access your assigned bus shift.
-            </Text>
+            <Text style={styles.cardHeading}>Sign In</Text>
 
             {errorMsg ? (
               <View style={styles.errorBox}>
@@ -124,13 +146,13 @@ export default function LoginScreen({ navigation }) {
               </View>
             ) : null}
 
-            {/* Identifier Input (Mobile or Email) */}
+            {/* Mobile / Email Input */}
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>MOBILE NUMBER OR EMAIL</Text>
+              <Text style={styles.inputLabel}>MOBILE OR EMAIL</Text>
               <TextInput
                 style={styles.input}
-                placeholder="e.g. 9876543210 or conductor@bus.com"
-                placeholderTextColor={colors.textSubtle}
+                placeholder="Enter mobile number or email"
+                placeholderTextColor="#94a3b8"
                 value={identifier}
                 onChangeText={(val) => {
                   setIdentifier(val);
@@ -158,8 +180,8 @@ export default function LoginScreen({ navigation }) {
               </View>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your password"
-                placeholderTextColor={colors.textSubtle}
+                placeholder="Enter password"
+                placeholderTextColor="#94a3b8"
                 value={password}
                 onChangeText={(val) => {
                   setPassword(val);
@@ -172,12 +194,12 @@ export default function LoginScreen({ navigation }) {
               />
             </View>
 
-            {/* Submit Button */}
+            {/* Sign In Button */}
             <TouchableOpacity
               style={[styles.loginButton, loading && styles.loginButtonDisabled]}
               onPress={handleLogin}
               disabled={loading}
-              activeOpacity={0.85}
+              activeOpacity={0.88}
             >
               {loading ? (
                 <View style={styles.loadingRow}>
@@ -185,18 +207,56 @@ export default function LoginScreen({ navigation }) {
                   <Text style={styles.loginButtonText}>Authenticating...</Text>
                 </View>
               ) : (
-                <Text style={styles.loginButtonText}>LOGIN AS CONDUCTOR ›</Text>
+                <Text style={styles.loginButtonText}>Sign In ➔</Text>
               )}
             </TouchableOpacity>
-
-            <View style={styles.helpBox}>
-              <Text style={styles.helpText}>
-                🔐 Only assigned buses for your profile will be accessible after login. For credentials, contact dispatch/admin.
-              </Text>
-            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* ========================================================= */}
+      {/* CUSTOM EXIT APP CONFIRMATION POPUP */}
+      {/* ========================================================= */}
+      <Modal
+        visible={showExitAppModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowExitAppModal(false)}
+      >
+        <Pressable style={styles.confirmModalBackdrop} onPress={() => setShowExitAppModal(false)}>
+          <Pressable style={styles.confirmModalCard} onPress={() => { }}>
+            <View style={styles.confirmIconBadgeExit}>
+              <Text style={styles.confirmEmoji}>🚍</Text>
+            </View>
+
+            <Text style={styles.confirmTitle}>Exit Application?</Text>
+            <Text style={styles.confirmSubtitle}>
+              Do you want to close and exit the Shree Mateshwari Conductor app?
+            </Text>
+
+            <View style={styles.confirmBtnRow}>
+              <TouchableOpacity
+                style={styles.confirmCancelBtn}
+                onPress={() => setShowExitAppModal(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.confirmCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.confirmExitBtn}
+                onPress={() => {
+                  setShowExitAppModal(false);
+                  BackHandler.exitApp();
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.confirmExitBtnText}>Exit App</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -204,7 +264,7 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.primary,
+    backgroundColor: '#1e1b4b',
   },
   container: {
     flex: 1,
@@ -212,89 +272,78 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 20,
+    padding: 24,
   },
   brandHeader: {
     alignItems: 'center',
-    marginBottom: 26,
-    paddingTop: 10,
+    marginBottom: 28,
   },
   logoBadge: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
-    backgroundColor: colors.primarySurface,
+    width: 76,
+    height: 76,
+    borderRadius: 24,
+    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.4)',
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
+    overflow: 'hidden',
   },
-  logoText: {
-    fontSize: 34,
+  logoImage: {
+    width: 62,
+    height: 62,
+    borderRadius: 16,
   },
   brandTitle: {
     fontSize: 22,
     fontWeight: '900',
     color: '#ffffff',
-    letterSpacing: 1.5,
-  },
-  brandSubtitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primaryMuted,
     letterSpacing: 1.2,
-    marginTop: 4,
   },
-  roleTag: {
+  portalPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.35)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 20,
-    marginTop: 12,
+    marginTop: 10,
   },
-  roleDot: {
+  portalDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.success,
+    backgroundColor: '#34d399',
     marginRight: 6,
   },
-  roleTagText: {
-    color: colors.successBright,
+  portalPillText: {
+    color: '#c7d2fe',
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.8,
   },
   card: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#ffffff',
     borderRadius: 24,
     padding: 24,
-    shadowColor: colors.shadow,
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
     elevation: 8,
   },
   cardHeading: {
-    fontSize: 19,
-    fontWeight: '800',
-    color: colors.textStrong,
-    marginBottom: 6,
-  },
-  cardDescription: {
-    fontSize: 12,
-    color: colors.textMuted,
-    lineHeight: 18,
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#0f172a',
     marginBottom: 20,
   },
   errorBox: {
@@ -304,7 +353,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#fca5a5',
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 14,
     marginBottom: 16,
   },
   errorIcon: {
@@ -315,7 +364,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: '#b91c1c',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   inputGroup: {
     marginBottom: 18,
@@ -326,39 +375,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   inputLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
-    color: colors.textBody,
+    color: '#64748b',
     letterSpacing: 0.6,
     marginBottom: 8,
   },
   showPassText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.primaryText,
     marginBottom: 8,
   },
   input: {
-    backgroundColor: colors.background,
+    backgroundColor: '#f8fafc',
     borderWidth: 1.5,
-    borderColor: colors.border,
+    borderColor: '#e2e8f0',
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 13,
     fontSize: 14,
-    color: colors.text,
+    color: '#0f172a',
     fontWeight: '600',
   },
   loginButton: {
-    backgroundColor: colors.primarySurface,
+    backgroundColor: colors.primary,
     paddingVertical: 15,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
-    shadowColor: colors.primaryText,
+    marginTop: 6,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 4,
   },
@@ -372,21 +421,95 @@ const styles = StyleSheet.create({
   },
   loginButtonText: {
     color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: 0.8,
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0.5,
     marginLeft: 6,
   },
-  helpBox: {
-    marginTop: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+  // CUSTOM EXIT CONFIRMATION POPUP
+  confirmModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
-  helpText: {
-    fontSize: 11,
-    color: colors.textSubtle,
-    lineHeight: 16,
+  confirmModalCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    maxWidth: 320,
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  confirmIconBadgeExit: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#e0e7ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    borderWidth: 1.5,
+    borderColor: '#c7d2fe',
+  },
+  confirmEmoji: {
+    fontSize: 28,
+  },
+  confirmTitle: {
+    fontSize: 19,
+    fontWeight: '900',
+    color: '#0f172a',
+    marginBottom: 6,
     textAlign: 'center',
+  },
+  confirmSubtitle: {
+    fontSize: 13,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  confirmBtnRow: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
+  },
+  confirmCancelBtn: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 14,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmCancelBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#475569',
+  },
+  confirmExitBtn: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  confirmExitBtnText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#ffffff',
   },
 });

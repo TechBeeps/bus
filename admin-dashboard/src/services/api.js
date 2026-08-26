@@ -66,3 +66,6 @@ export const getAdminCustomers = (params) => client.get('/admin/customers', { pa
 export const getLoyaltyRules = () => client.get('/admin/loyalty-rules');
 export const createLoyaltyRule = (payload) => client.post('/admin/loyalty-rules', payload);
 export const deleteLoyaltyRule = (id) => client.delete(`/admin/loyalty-rules/${id}`);
+
+// Conductor Payment History (Track by Conductor and Date)
+export const getConductorPaymentHistory = (params) => client.get('/conductor/payment-history', { params });

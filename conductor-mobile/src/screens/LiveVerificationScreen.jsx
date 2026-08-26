@@ -10,6 +10,9 @@ import {
   StatusBar,
   Modal,
   Pressable,
+  ActivityIndicator,
+  RefreshControl,
+  Platform,
 } from 'react-native';
 import { playVerificationChime } from '../services/AudioService';
 import * as Notifications from 'expo-notifications';
@@ -17,7 +20,7 @@ import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import QRCode from 'react-native-qrcode-svg';
-import Svg, { G, Path, Rect } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import colors from '../theme/colors';
 
 const PRIMARY_API_BASE = 'https://api.shreemateshwaribus.com/api/v1';
@@ -36,10 +39,69 @@ export default function LiveVerificationScreen({ route, navigation }) {
   const [showAlertOverlay, setShowAlertOverlay] = useState(false);
   const [totalCollection, setTotalCollection] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const knownTicketIds = useRef(new Set());
   const firstLoadRef = useRef(true);
   const appState = useRef(AppState.currentState);
+
+  const fetchUpdates = async () => {
+    try {
+      let activeConductorId = conductor?.conductor_id || route?.params?.conductorId || null;
+      let currentCondId = activeConductorId;
+      if (!currentCondId) {
+        try {
+          const sessionJson = await AsyncStorage.getItem('@conductor_session');
+          if (sessionJson) {
+            const session = JSON.parse(sessionJson);
+            currentCondId = session?.conductor_id;
+            setConductor(session);
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      let tickets = [];
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+      // Fetch using conductor ID endpoint (or fallback to bus ID)
+      const fetchUrl = currentCondId
+        ? `${PRIMARY_API_BASE}/tickets/conductor/${currentCondId}`
+        : `${PRIMARY_API_BASE}/tickets/${busId}`;
+
+      try {
+        const res = await fetch(fetchUrl, {
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (res && res.status === 200) {
+          const data = await res.json();
+          tickets = Array.isArray(data.data) ? data.data : [];
+          setIsOnline(true);
+        } else {
+          setIsOnline(false);
+        }
+      } catch (err) {
+        clearTimeout(timeoutId);
+        setIsOnline(false);
+      }
+
+      await processIncomingTickets(tickets);
+
+      if (firstLoadRef.current) {
+        firstLoadRef.current = false;
+      }
+    } catch (error) {
+      setIsOnline(false);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     const appStateListener = (nextAppState) => {
@@ -62,67 +124,6 @@ export default function LiveVerificationScreen({ route, navigation }) {
       }
     };
 
-    const saveKnownIds = async () => {
-      try {
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(knownTicketIds.current)));
-      } catch (e) {
-        // ignore save errors
-      }
-    };
-
-    const fetchUpdates = async () => {
-      try {
-        let currentCondId = activeConductorId;
-        if (!currentCondId) {
-          try {
-            const sessionJson = await AsyncStorage.getItem('@conductor_session');
-            if (sessionJson) {
-              const session = JSON.parse(sessionJson);
-              currentCondId = session?.conductor_id;
-              setConductor(session);
-            }
-          } catch (e) {
-            // ignore
-          }
-        }
-
-        let tickets = [];
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-        // Fetch using conductor ID endpoint (or fallback to bus ID)
-        const fetchUrl = currentCondId
-          ? `${PRIMARY_API_BASE}/tickets/conductor/${currentCondId}`
-          : `${PRIMARY_API_BASE}/tickets/${busId}`;
-
-        try {
-          const res = await fetch(fetchUrl, {
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
-
-          if (res && res.status === 200) {
-            const data = await res.json();
-            tickets = Array.isArray(data.data) ? data.data : [];
-            setIsOnline(true);
-          } else {
-            setIsOnline(false);
-          }
-        } catch (err) {
-          clearTimeout(timeoutId);
-          setIsOnline(false);
-        }
-
-        await processIncomingTickets(tickets, saveKnownIds);
-
-        if (firstLoadRef.current) {
-          firstLoadRef.current = false;
-        }
-      } catch (error) {
-        setIsOnline(false);
-      }
-    };
-
     const init = async () => {
       await loadKnownIds();
       await fetchUpdates();
@@ -141,14 +142,16 @@ export default function LiveVerificationScreen({ route, navigation }) {
     };
   }, [busId, conductor]);
 
-  const processIncomingTickets = async (tickets, persistFn) => {
+  const processIncomingTickets = async (tickets) => {
     let sum = 0;
     const isFirst = firstLoadRef.current;
 
     tickets.forEach((ticket) => {
-      const amt = parseFloat(ticket.paidamount) || parseFloat(ticket.amount) || 0;
-      if (ticket.razorpay_payment_id !== 'monthly_pass' && ticket.payment_mode !== 'PASS') {
-        sum += amt;
+      const isPass = ticket.razorpay_payment_id === 'monthly_pass' || ticket.payment_mode === 'PASS' || ticket.razorpay_payment_id === 'free_milestone_ride';
+      const paidVal = parseFloat(ticket.total_paid !== undefined ? ticket.total_paid : (ticket.paidamount !== undefined ? ticket.paidamount : ticket.amount)) || 0;
+
+      if (!isPass) {
+        sum += paidVal;
       }
 
       if (!isFirst && !knownTicketIds.current.has(ticket.ticket_id)) {
@@ -157,13 +160,21 @@ export default function LiveVerificationScreen({ route, navigation }) {
       knownTicketIds.current.add(ticket.ticket_id);
     });
 
-    // Always update list so it never stays stuck or empty
     setVerifiedTickets([...tickets]);
-    setTotalCollection(sum);
+    setTotalCollection(Math.round(sum * 100) / 100);
 
-    if (persistFn) {
-      await persistFn();
+    try {
+      let activeConductorId = conductor?.conductor_id || route?.params?.conductorId || null;
+      const STORAGE_KEY = `@knownTicketIds_${activeConductorId || busId}`;
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(knownTicketIds.current)));
+    } catch (e) {
+      // ignore
     }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchUpdates();
   };
 
   const triggerConductorAlert = (ticket) => {
@@ -194,13 +205,13 @@ export default function LiveVerificationScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
+      <StatusBar barStyle="light-content" backgroundColor="#1e1b4b" />
 
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity
-            style={styles.exitShiftButton}
+            style={styles.backButton}
             onPress={() => {
               if (navigation.canGoBack()) {
                 navigation.goBack();
@@ -213,12 +224,12 @@ export default function LiveVerificationScreen({ route, navigation }) {
             }}
             hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
           >
-            <Text style={styles.exitShiftText}>‹</Text>
+            <Text style={styles.backButtonText}>‹</Text>
           </TouchableOpacity>
           <View>
             <Text style={styles.busTitle}>{busNo || assignedBus?.bus_number || busId}</Text>
             <View style={styles.statusRow}>
-              <View style={[styles.statusDot, { backgroundColor: isOnline ? colors.success : colors.warning }]} />
+              <View style={[styles.statusDot, { backgroundColor: isOnline ? '#10b981' : '#f59e0b' }]} />
               <Text style={styles.statusText}>
                 {isOnline ? 'LIVE SYNC' : 'OFFLINE MODE'} • {conductor?.name || conductor?.conductor_id || 'Conductor'}
               </Text>
@@ -227,7 +238,7 @@ export default function LiveVerificationScreen({ route, navigation }) {
         </View>
 
         <View style={styles.collectionBadge}>
-          <Text style={styles.collectionLabel}>TODAY'S COLLECTION</Text>
+          <Text style={styles.collectionLabel}>TODAY'S</Text>
           <Text style={styles.collectionValue}>₹{totalCollection}</Text>
         </View>
       </View>
@@ -239,89 +250,126 @@ export default function LiveVerificationScreen({ route, navigation }) {
           <Text style={styles.subHeader}>Auto-refreshing live</Text>
         </View>
 
-        <FlatList
-          data={verifiedTickets}
-          keyExtractor={(item) => String(item.ticket_id || item.payment_id || Math.random())}
-          renderItem={({ item }) => {
-            const isPass = item.razorpay_payment_id === 'monthly_pass' || item.payment_mode === 'PASS';
-            const fareAmount = isPass ? 0 : (item.fare || item.amount || 0);
-            const cashbackAmount = isPass ? 0 : (item.cashback || 0);
-            const paidAmount = isPass ? 0 : (item.paidamount ?? item.total_paid ?? item.amount ?? 0);
+        {loading && !refreshing && verifiedTickets.length === 0 ? (
+          <View style={styles.singleLoadingContainer}>
+            <View style={styles.loadingSpinnerCircle}>
+              <ActivityIndicator size="large" color={colors.primaryText} />
+            </View>
+            <Text style={styles.loadingStateTitle}>Loading Live Feed...</Text>
+            <Text style={styles.loadingStateSubtitle}>
+              Connecting to bus server & fetching verified tickets
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={verifiedTickets}
+            keyExtractor={(item) => String(item.ticket_id || item.payment_id || Math.random())}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={colors.primaryText}
+                colors={[colors.primaryText]}
+              />
+            }
+            renderItem={({ item }) => {
+              const isPass = item.payment_mode === 'PASS' || item.razorpay_payment_id === 'monthly_pass';
+              const fareAmount = isPass ? 0 : (item.fare || item.amount || 0);
+              const cashbackAmount = isPass ? 0 : (item.cashback || 0);
+              const paidAmount = isPass ? 0 : (item.paidamount ?? item.total_paid ?? item.amount ?? 0);
 
-            return (
-              <TouchableOpacity
-                style={styles.ticketCard}
-                activeOpacity={0.85}
-                onPress={() => setSelectedTicket(item)}
-              >
-                {/* Header: Ticket ID, Bus Number & Mode Badge */}
-                <View style={styles.cardHeader}>
-                  <View style={styles.ticketIdRow}>
-                    <Text style={styles.ticketId}>#{item.ticket_id}</Text>
-                    <View style={styles.busBadge}>
-                      <Text style={styles.busBadgeText}>🚍 {item.bus_number || item.bus_no || busNo || item.bus_id}</Text>
+              return (
+                <TouchableOpacity
+                  style={styles.ticketCard}
+                  activeOpacity={0.85}
+                  onPress={() => setSelectedTicket(item)}
+                >
+                  {/* Ticket Card Top */}
+                  <View style={styles.ticketCardHeader}>
+                    <View style={styles.ticketIdRow}>
+                      <Text style={styles.ticketIdText}>#{item.ticket_id}</Text>
+                      {/* Bus Number Pill */}
+                      <View style={styles.busNumberPill}>
+                        <Text style={styles.busNumberPillText}>
+                          🚍 {item.bus_number || item.bus_no || busNo || item.bus_id || 'BUS'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Mode Badge */}
+                    <View style={[styles.modeBadge, isPass ? styles.modeBadgePass : styles.modeBadgeUpi]}>
+                      <Text style={[styles.modeBadgeText, isPass ? styles.modeBadgePassText : styles.modeBadgeUpiText]}>
+                        {isPass ? 'MONTHLY PASS' : 'UPI PAYMENT'}
+                      </Text>
                     </View>
                   </View>
 
-                  <View style={isPass ? styles.passBadge : styles.oneTimeBadge}>
-                    <Text style={isPass ? styles.passBadgeText : styles.oneTimeBadgeText}>
-                      {isPass ? 'Monthly Pass' : 'UPI Payment'}
+                  {/* Route & Passenger Details */}
+                  <View style={styles.ticketBody}>
+                    <Text style={styles.routeText} numberOfLines={1}>
+                      {item.origin} ➔ {item.destination}
                     </Text>
-                  </View>
-                </View>
-
-                {/* Route & Passengers */}
-                <View style={styles.cardBody}>
-                  <Text style={styles.routeText}>{item.origin} ➔ {item.destination}</Text>
-                  <Text style={styles.metaText}>
-                    👥 {item.passenger_count || 1} Passenger(s) • ⏰ {item.created_at ? (item.created_at.includes('T') ? item.created_at.split('T')[1].substring(0, 5) : item.created_at.split(' ')[1]?.substring(0, 5) || 'Today') : 'Just Now'}
-                  </Text>
-                </View>
-
-                {/* 3-Column Breakdown: FARE | CASHBACK | TOTAL PAID */}
-                <View style={styles.breakdownBox}>
-                  <View style={styles.breakdownCol}>
-                    <Text style={styles.breakdownLabel}>FARE</Text>
-                    <Text style={styles.breakdownValue}>{isPass ? '₹0' : `₹${fareAmount}`}</Text>
-                  </View>
-
-                  <View style={styles.breakdownDivider} />
-
-                  <View style={styles.breakdownCol}>
-                    <Text style={styles.breakdownLabel}>CASHBACK</Text>
-                    <Text style={[styles.breakdownValue, cashbackAmount > 0 && styles.cashbackGreen]}>
-                      {cashbackAmount > 0 ? `-₹${cashbackAmount}` : '₹0'}
+                    <Text style={styles.passengerText}>
+                      👥 {item.passenger_count || 1} Passenger(s) • ⏰ {item.created_at ? (item.created_at.includes('T') ? item.created_at.split('T')[1].substring(0, 5) : item.created_at.split(' ')[1]?.substring(0, 5) || 'Today') : 'Just Now'}
                     </Text>
                   </View>
 
-                  <View style={styles.breakdownDivider} />
+                  {/* Explicit 3-Column Breakdown: FARE | CASHBACK | TOTAL PAID */}
+                  <View style={styles.priceBreakdownBox}>
+                    <View style={styles.priceColumn}>
+                      <Text style={styles.priceColLabel}>FARE</Text>
+                      <Text style={styles.priceColValue}>
+                        {isPass ? '₹0' : `₹${fareAmount}`}
+                      </Text>
+                    </View>
 
-                  <View style={styles.breakdownCol}>
-                    <Text style={styles.breakdownLabel}>TOTAL PAID</Text>
-                    <Text style={[styles.breakdownValue, isPass ? styles.paidPassText : styles.paidUpiText]}>
-                      {isPass ? 'PASS RIDE' : `₹${paidAmount}`}
+                    <View style={styles.priceDivider} />
+
+                    <View style={styles.priceColumn}>
+                      <Text style={styles.priceColLabel}>CASHBACK</Text>
+                      <Text style={[styles.priceColValue, cashbackAmount > 0 ? styles.cashbackPositiveText : styles.priceColValueNeutral]}>
+                        {cashbackAmount > 0 ? `-₹${cashbackAmount}` : '₹0'}
+                      </Text>
+                    </View>
+
+                    <View style={styles.priceDivider} />
+
+                    <View style={styles.priceColumn}>
+                      <Text style={styles.priceColLabel}>TOTAL PAID</Text>
+                      <Text style={[styles.priceColValue, isPass ? styles.pricePaidPassText : styles.pricePaidUpiText]}>
+                        {isPass ? 'PASS RIDE' : `₹${paidAmount}`}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Bottom Status Checkmark */}
+                  <View style={styles.ticketCardFooter}>
+                    <Text style={styles.ticketTimeText}>
+                      {item.created_at ? item.created_at.slice(0, 19).replace('T', ' ') : 'Verified'}
                     </Text>
-                  </View>
-                </View>
 
-                {/* Card Footer */}
-                <View style={styles.cardFooter}>
-                  <Text style={styles.viewDetailsText}>Tap to view full receipt  ›</Text>
-                  <View style={styles.verifiedCheckBadge}>
-                    <Text style={styles.verifiedCheckText}>✓ Verified</Text>
+                    <View style={styles.verifiedRow}>
+                      <Text style={styles.verifiedText}>✓ Verified & Paid</Text>
+                    </View>
                   </View>
-                </View>
-              </TouchableOpacity>
-            );
-          }}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyEmoji}>🎫</Text>
-              <Text style={styles.emptyTitle}>Waiting for passenger scans...</Text>
-              <Text style={styles.emptySubtitle}>Live payments verified by conductor will appear here instantly.</Text>
-            </View>
-          }
-        />
+                </TouchableOpacity>
+              );
+            }}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyEmoji}>🎫</Text>
+                <Text style={styles.emptyTitle}>Waiting for passenger scans...</Text>
+                <Text style={styles.emptySubtitle}>
+                  Live payments verified by conductor will appear here instantly.
+                </Text>
+                <TouchableOpacity style={styles.emptyRetryBtn} onPress={onRefresh}>
+                  <Text style={styles.emptyRetryBtnText}>🔄 Refresh Now</Text>
+                </TouchableOpacity>
+              </View>
+            }
+          />
+        )}
       </View>
 
       {/* Alert Overlay on New Ticket Scan */}
@@ -363,7 +411,7 @@ export default function LiveVerificationScreen({ route, navigation }) {
         </TouchableOpacity>
       )}
 
-      {/* Modal: Ticket Details Receipt */}
+      {/* Modal: Ticket Details Receipt Bottom Sheet */}
       <Modal
         visible={Boolean(selectedTicket)}
         transparent
@@ -497,15 +545,18 @@ export default function LiveVerificationScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#f8fafc',
   },
   header: {
-    backgroundColor: colors.primary,
-    padding: 20,
-    paddingTop: 45,
+    backgroundColor: '#1e1b4b',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    paddingTop: Platform.OS === 'android' ? 44 : 14,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerLeft: {
     flexDirection: 'row',
@@ -513,19 +564,25 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 10,
   },
-  exitShiftButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginRight: 10,
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#312e81',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
-  exitShiftText: {
+  backButtonText: {
     color: '#ffffff',
     fontSize: 22,
     fontWeight: '700',
+    marginTop: -2,
   },
   busTitle: {
-    color: colors.textOnPrimary,
+    color: '#ffffff',
     fontSize: 18,
     fontWeight: '900',
   },
@@ -535,31 +592,33 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
     marginRight: 6,
   },
   statusText: {
-    color: colors.primaryMuted,
+    color: '#c7d2fe',
     fontSize: 11,
     fontWeight: '700',
   },
   collectionBadge: {
-    backgroundColor: colors.primarySurface,
+    backgroundColor: '#312e81',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 12,
     alignItems: 'flex-end',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   collectionLabel: {
-    color: colors.primaryMuted,
+    color: '#c7d2fe',
     fontSize: 9,
     fontWeight: '800',
     letterSpacing: 0.6,
   },
   collectionValue: {
-    color: colors.successBright,
+    color: '#34d399',
     fontSize: 18,
     fontWeight: '900',
   },
@@ -575,29 +634,62 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     fontSize: 14,
-    fontWeight: '800',
-    color: colors.textStrong,
+    fontWeight: '900',
+    color: '#0f172a',
     textTransform: 'uppercase',
   },
   subHeader: {
     fontSize: 11,
-    color: colors.textMuted,
+    color: '#64748b',
     fontWeight: '600',
   },
+  listContent: {
+    paddingBottom: 80,
+  },
+  // SINGLE LOADING VIEW
+  singleLoadingContainer: {
+    padding: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 50,
+  },
+  loadingSpinnerCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  loadingStateTitle: {
+    color: colors.textStrong,
+    fontSize: 16,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  loadingStateSubtitle: {
+    color: colors.textMuted,
+    fontSize: 12,
+    textAlign: 'center',
+    maxWidth: 240,
+    lineHeight: 18,
+  },
+  // TICKET CARD (IDENTICAL TO PAYMENT HISTORY)
   ticketCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#ffffff',
     borderRadius: 18,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: colors.shadow,
+    borderColor: '#e2e8f0',
+    shadowColor: '#64748b',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
-    shadowRadius: 5,
+    shadowRadius: 6,
     elevation: 2,
   },
-  cardHeader: {
+  ticketCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -608,175 +700,192 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  ticketId: {
-    fontWeight: '900',
-    color: colors.textStrong,
+  ticketIdText: {
+    color: '#0f172a',
     fontSize: 14,
+    fontWeight: '900',
   },
-  busBadge: {
-    backgroundColor: colors.primarySoft,
+  busNumberPill: {
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
   },
-  busBadgeText: {
+  busNumberPillText: {
     color: colors.primaryText,
     fontSize: 10,
     fontWeight: '800',
   },
-  oneTimeBadge: {
-    backgroundColor: colors.successSoft,
+  modeBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
   },
-  oneTimeBadgeText: {
-    color: colors.successText,
+  modeBadgeUpi: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+  },
+  modeBadgePass: {
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+  },
+  modeBadgeUpiText: {
+    color: '#059669',
     fontSize: 9,
     fontWeight: '900',
   },
-  passBadge: {
-    backgroundColor: colors.warningSoft,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  passBadgeText: {
-    color: colors.warningText,
+  modeBadgePassText: {
+    color: '#d97706',
     fontSize: 9,
     fontWeight: '900',
   },
-  cardBody: {
-    marginBottom: 10,
+  ticketBody: {
+    marginBottom: 12,
   },
   routeText: {
-    color: colors.textBody,
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: 2,
+    color: '#0f172a',
+    fontSize: 15,
+    fontWeight: '900',
   },
-  metaText: {
-    color: colors.textMuted,
+  passengerText: {
+    color: '#64748b',
     fontSize: 11,
     fontWeight: '600',
+    marginTop: 3,
   },
-  breakdownBox: {
-    backgroundColor: colors.background,
+  priceBreakdownBox: {
+    flexDirection: 'row',
+    backgroundColor: '#f8fafc',
     borderRadius: 12,
     paddingVertical: 8,
-    paddingHorizontal: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    paddingHorizontal: 6,
     alignItems: 'center',
+    justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    marginBottom: 8,
+    borderColor: '#e2e8f0',
+    marginBottom: 10,
   },
-  breakdownCol: {
+  priceColumn: {
     flex: 1,
     alignItems: 'center',
   },
-  breakdownDivider: {
+  priceDivider: {
     width: 1,
-    height: 20,
-    backgroundColor: colors.border,
+    height: 18,
+    backgroundColor: '#e2e8f0',
   },
-  breakdownLabel: {
+  priceColLabel: {
     fontSize: 8,
     fontWeight: '800',
-    color: colors.textSubtle,
+    color: '#64748b',
     letterSpacing: 0.5,
     marginBottom: 2,
   },
-  breakdownValue: {
+  priceColValue: {
     fontSize: 12,
-    fontWeight: '800',
-    color: colors.textStrong,
-  },
-  cashbackGreen: {
-    color: colors.primaryText,
     fontWeight: '900',
+    color: '#0f172a',
   },
-  paidUpiText: {
-    color: colors.successStrong,
-    fontWeight: '900',
-    fontSize: 13,
+  priceColValueNeutral: {
+    color: '#64748b',
   },
-  paidPassText: {
-    color: colors.warningStrong,
-    fontWeight: '900',
-    fontSize: 11,
+  cashbackPositiveText: {
+    color: '#059669',
   },
-  cardFooter: {
+  pricePaidUpiText: {
+    color: '#059669',
+  },
+  pricePaidPassText: {
+    color: '#d97706',
+  },
+  ticketCardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 6,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
   },
-  viewDetailsText: {
-    color: colors.primaryText,
-    fontSize: 11,
-    fontWeight: '700',
+  ticketTimeText: {
+    color: '#94a3b8',
+    fontSize: 10,
+    fontWeight: '600',
   },
-  verifiedCheckBadge: {
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+  verifiedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  verifiedCheckText: {
-    color: colors.successStrong,
+  verifiedText: {
+    color: '#059669',
     fontSize: 10,
     fontWeight: '800',
   },
-  emptyState: {
-    padding: 40,
+  emptyContainer: {
+    padding: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: '#ffffff',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: colors.border,
-    marginTop: 20,
+    borderColor: '#e2e8f0',
+    marginTop: 10,
   },
   emptyEmoji: {
-    fontSize: 36,
+    fontSize: 40,
     marginBottom: 8,
   },
   emptyTitle: {
-    color: colors.textStrong,
-    fontSize: 15,
-    fontWeight: '800',
+    color: '#0f172a',
+    fontSize: 16,
+    fontWeight: '900',
     marginBottom: 4,
   },
   emptySubtitle: {
-    color: colors.textMuted,
+    color: '#64748b',
     fontSize: 12,
     textAlign: 'center',
+    marginBottom: 16,
   },
+  emptyRetryBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  emptyRetryBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  // OVERLAY ALERT
   overlayContainer: {
     position: 'absolute',
     top: 0,
-    bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    bottom: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 999,
+    padding: 24,
   },
   overlayCard: {
-    width: '85%',
-    backgroundColor: colors.surface,
+    backgroundColor: '#ffffff',
     borderRadius: 24,
     padding: 24,
     alignItems: 'center',
+    width: '100%',
+    maxWidth: 340,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
   },
   overlayIconContainer: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: colors.success,
+    backgroundColor: '#10b981',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
@@ -787,59 +896,71 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   overlayTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#059669',
     letterSpacing: 1,
+    marginBottom: 4,
   },
   overlayAmount: {
     fontSize: 32,
     fontWeight: '900',
-    color: colors.successStrong,
-    marginVertical: 6,
+    color: '#0f172a',
+    marginBottom: 16,
   },
   overlayAmountPass: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '900',
-    color: colors.warningStrong,
-    marginVertical: 6,
+    color: '#d97706',
+    marginBottom: 16,
   },
   overlayDetailsBox: {
-    width: '100%',
-    backgroundColor: colors.background,
-    borderRadius: 14,
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
     padding: 12,
-    marginVertical: 12,
+    width: '100%',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   overlayDetailText: {
-    color: colors.textBody,
-    fontSize: 12,
-    marginVertical: 2,
+    fontSize: 13,
+    color: '#475569',
+    marginBottom: 4,
   },
   bold: {
-    fontWeight: '700',
-    color: colors.textStrong,
+    fontWeight: '800',
+    color: '#0f172a',
   },
   overlayDismissHint: {
-    color: colors.textSubtle,
     fontSize: 11,
-    marginTop: 6,
+    color: '#94a3b8',
+    fontWeight: '700',
   },
+  // RECEIPT BOTTOM SHEET MODAL
   detailsBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     justifyContent: 'flex-end',
   },
   detailsSheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 44 : 28,
+    maxHeight: '92%',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 20,
   },
   sheetHandle: {
-    width: 40,
+    width: 38,
     height: 4,
-    backgroundColor: colors.border,
+    backgroundColor: '#cbd5e1',
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 16,
@@ -851,176 +972,208 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   detailsEyebrow: {
-    color: colors.textSubtle,
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: '900',
+    color: '#6366f1',
     letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 3,
   },
   detailsTitle: {
-    color: colors.textStrong,
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '900',
+    color: '#0f172a',
   },
   detailsCloseButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: '#f1f5f9',
     alignItems: 'center',
     justifyContent: 'center',
   },
   detailsCloseText: {
-    fontSize: 18,
-    color: colors.textMuted,
-    fontWeight: '700',
+    fontSize: 20,
+    color: '#64748b',
+    fontWeight: '600',
+    lineHeight: 22,
   },
   detailsRouteBox: {
-    backgroundColor: colors.background,
-    padding: 12,
-    borderRadius: 12,
+    backgroundColor: '#f8fafc',
+    borderRadius: 14,
+    padding: 14,
     marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   detailsRouteLabel: {
-    color: colors.textSubtle,
     fontSize: 9,
     fontWeight: '800',
-    marginBottom: 2,
+    color: '#64748b',
+    letterSpacing: 0.6,
+    marginBottom: 4,
   },
   detailsRouteText: {
-    color: colors.textStrong,
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
   },
   detailsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
     marginBottom: 14,
   },
   detailCell: {
     width: '50%',
     paddingVertical: 6,
+    paddingHorizontal: 4,
   },
   detailsLabel: {
-    color: colors.textSubtle,
     fontSize: 9,
     fontWeight: '800',
+    color: '#64748b',
+    letterSpacing: 0.5,
+    marginBottom: 3,
   },
   detailsValue: {
-    color: colors.textStrong,
     fontSize: 13,
-    fontWeight: '700',
-    marginTop: 2,
+    fontWeight: '800',
+    color: '#0f172a',
   },
   receiptBreakupCard: {
-    backgroundColor: colors.background,
-    borderRadius: 14,
-    padding: 12,
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    padding: 14,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#e2e8f0',
     marginBottom: 14,
   },
   receiptBreakupRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: 5,
   },
   receiptBreakupLabel: {
-    color: colors.textMuted,
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '700',
   },
   receiptBreakupVal: {
-    color: colors.textStrong,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0f172a',
   },
   receiptBreakupTotalRow: {
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: '#e2e8f0',
+    paddingTop: 10,
     marginTop: 6,
-    paddingTop: 8,
   },
   receiptTotalLabel: {
-    color: colors.successStrong,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '900',
+    color: '#0f172a',
+    letterSpacing: 0.5,
   },
   receiptTotalVal: {
-    color: colors.successStrong,
     fontSize: 16,
     fontWeight: '900',
+    color: '#059669',
   },
   transactionBox: {
-    backgroundColor: colors.background,
-    padding: 10,
-    borderRadius: 10,
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 10,
   },
   transactionText: {
-    color: colors.textStrong,
-    fontFamily: 'monospace',
     fontSize: 11,
+    color: '#475569',
+    fontWeight: '700',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
     marginTop: 2,
   },
+  // FLOATING QR BUTTON
   qrFloatingButton: {
     position: 'absolute',
     bottom: 24,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    right: 24,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowRadius: 10,
+    elevation: 8,
   },
   qrIconInner: {
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   qrModalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.8)',
     justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
   qrModalCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#ffffff',
     borderRadius: 24,
     padding: 24,
     alignItems: 'center',
+    width: '100%',
+    maxWidth: 320,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
   },
   qrTitle: {
-    color: colors.textStrong,
     fontSize: 18,
     fontWeight: '900',
+    color: '#0f172a',
+    marginBottom: 2,
   },
   qrSubtitle: {
-    color: colors.textMuted,
     fontSize: 12,
-    marginTop: 2,
+    color: '#64748b',
+    fontWeight: '600',
     marginBottom: 16,
   },
   qrBox: {
+    padding: 12,
     backgroundColor: '#ffffff',
-    padding: 16,
     borderRadius: 16,
-    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 20,
   },
   qrCloseButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#f1f5f9',
+    paddingVertical: 12,
     paddingHorizontal: 24,
-    paddingVertical: 10,
     borderRadius: 12,
     width: '100%',
     alignItems: 'center',
   },
   qrCloseText: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontWeight: '800',
     fontSize: 13,
   },

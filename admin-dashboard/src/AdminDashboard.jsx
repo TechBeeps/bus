@@ -23,11 +23,14 @@ import {
   Trash2,
   Sparkles,
   Check,
+  Receipt,
+  Settings,
 } from 'lucide-react';
 
 import Login from './components/Login';
 import Buses from './pages/Buses';
 import Conductors from './pages/Conductors';
+import ConductorPaymentHistory from './pages/ConductorPaymentHistory';
 import Cities from './pages/Cities';
 import ShiftAuditLogs from './pages/ShiftAuditLogs';
 import TicketsList from './pages/TicketsList';
@@ -250,28 +253,32 @@ export default function AdminDashboard() {
 
   const navItems = [
     { path: '/overview', label: 'Dashboard Overview', icon: LayoutDashboard },
-    { path: '/buses', label: 'Bus Fleet', icon: Bus },
-    { path: '/conductors', label: 'Conductors', icon: Users },
-    { path: '/cities', label: 'City List', icon: MapPin },
-    { path: '/shifts', label: 'Shift Audit Logs', icon: Clock },
+    { path: '/payment-history', label: 'Payment History', icon: Receipt },
     { path: '/tickets', label: 'All Tickets', icon: Ticket },
     { path: '/monthly-passes', label: 'Monthly Passes', icon: CreditCard },
-    { path: '/customers', label: 'Customers Directory', icon: UserCheck },
-    { path: '/discount-rules', label: 'Discount Rules (DB)', icon: Gift },
+    { path: '/buses', label: 'Bus Fleet', icon: Bus },
+    { path: '/conductors', label: 'Conductors', icon: Users },
+    { path: '/shifts', label: 'Shift Audit Logs', icon: Clock },
+    { path: '/cities', label: 'City List', icon: MapPin },
+    { path: '/customers', label: 'Customers', icon: UserCheck },
+    { path: '/settings', label: 'Settings', icon: Settings },
   ];
 
   const getHeaderTitle = () => {
     switch (currentPath) {
-      case '/buses': return 'Bus Fleet Management';
-      case '/conductors': return 'Conductor Roster';
-      case '/cities': return 'Operational Cities';
-      case '/shifts':
-      case '/shift-logs': return 'Shift Auditing';
+      case '/payment-history':
+      case '/conductor-payments': return 'Payment History';
       case '/tickets': return 'Ticket Repository';
       case '/monthly-passes': return 'Monthly Pass Directory';
-      case '/customers': return 'Customer & Passenger Directory';
+      case '/buses': return 'Bus Fleet Management';
+      case '/conductors': return 'Conductor Roster';
+      case '/shifts':
+      case '/shift-logs': return 'Shift Auditing';
+      case '/cities': return 'Operational Cities';
+      case '/customers': return 'Customers';
+      case '/settings':
       case '/discount-rules':
-      case '/cashback-rules': return 'Dynamic Discount & Milestone Rules';
+      case '/cashback-rules': return 'Settings';
       default: return 'Live Fleet & Financial Overview';
     }
   };
@@ -448,6 +455,15 @@ export default function AdminDashboard() {
                       </button>
 
                       <button
+                        onClick={() => navigate('/payment-history')}
+                        className="p-4 bg-slate-800/60 hover:bg-indigo-600/20 border border-slate-700/60 hover:border-indigo-500/40 rounded-2xl text-left transition-all group cursor-pointer"
+                      >
+                        <Receipt className="w-5 h-5 text-indigo-400 group-hover:scale-110 transition-transform mb-2" />
+                        <div className="text-xs font-bold text-white">Payment History</div>
+                        <div className="text-[11px] text-slate-400">Track conductor ledger & date</div>
+                      </button>
+
+                      <button
                         onClick={() => navigate('/customers')}
                         className="p-4 bg-slate-800/60 hover:bg-indigo-600/20 border border-slate-700/60 hover:border-indigo-500/40 rounded-2xl text-left transition-all group cursor-pointer"
                       >
@@ -470,18 +486,9 @@ export default function AdminDashboard() {
               }
             />
 
-            {/* ROUTE: BUS FLEET */}
-            <Route path="/buses" element={<Buses />} />
-
-            {/* ROUTE: CONDUCTORS */}
-            <Route path="/conductors" element={<Conductors />} />
-
-            {/* ROUTE: CITIES */}
-            <Route path="/cities" element={<Cities />} />
-
-            {/* ROUTE: SHIFTS */}
-            <Route path="/shifts" element={<ShiftAuditLogs />} />
-            <Route path="/shift-logs" element={<Navigate to="/shifts" replace />} />
+            {/* ROUTE: PAYMENT HISTORY */}
+            <Route path="/payment-history" element={<ConductorPaymentHistory />} />
+            <Route path="/conductor-payments" element={<Navigate to="/payment-history" replace />} />
 
             {/* ROUTE: ALL TICKETS */}
             <Route path="/tickets" element={<TicketsList />} />
@@ -489,12 +496,25 @@ export default function AdminDashboard() {
             {/* ROUTE: MONTHLY PASSES */}
             <Route path="/monthly-passes" element={<MonthlyPasses />} />
 
+            {/* ROUTE: BUS FLEET */}
+            <Route path="/buses" element={<Buses />} />
+
+            {/* ROUTE: CONDUCTORS */}
+            <Route path="/conductors" element={<Conductors />} />
+
+            {/* ROUTE: SHIFTS */}
+            <Route path="/shifts" element={<ShiftAuditLogs />} />
+            <Route path="/shift-logs" element={<Navigate to="/shifts" replace />} />
+
+            {/* ROUTE: CITIES */}
+            <Route path="/cities" element={<Cities />} />
+
             {/* ROUTE: CUSTOMERS */}
             <Route path="/customers" element={<Customers />} />
 
-            {/* ROUTE: DISCOUNT & MILESTONE RULES */}
+            {/* ROUTE: SETTINGS */}
             <Route
-              path="/discount-rules"
+              path="/settings"
               element={
                 <div className="max-w-5xl mx-auto space-y-8">
                   {/* Page Header */}
@@ -718,7 +738,8 @@ export default function AdminDashboard() {
                 </div>
               }
             />
-            <Route path="/cashback-rules" element={<Navigate to="/discount-rules" replace />} />
+            <Route path="/discount-rules" element={<Navigate to="/settings" replace />} />
+            <Route path="/cashback-rules" element={<Navigate to="/settings" replace />} />
 
             {/* FALLBACK ROUTE */}
             <Route path="*" element={<Navigate to="/overview" replace />} />

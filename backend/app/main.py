@@ -2293,36 +2293,126 @@ def get_shift_logs(bus_id: Optional[str] = None, conductor_id: Optional[str] = N
     conn = get_connection()
     cursor = get_cursor(conn)
 
-    query = "SELECT * FROM conductor_shift_logs WHERE 1=1"
-    params = []
+    # 1. Lookups
+    cursor.execute("SELECT conductor_id, name FROM conductors")
+    conductor_names = {c["conductor_id"]: c["name"] for c in cursor.fetchall()}
 
-    if bus_id:
-        query += " AND bus_id = %s"
-        params.append(bus_id)
-    if conductor_id:
-        query += " AND conductor_id = %s"
-        params.append(conductor_id)
-    if date:
-        query += " AND (shift_date = %s OR start_time LIKE CONCAT(%s, '%%'))"
-        params.extend([date, date])
+    cursor.execute("SELECT bus_id, bus_number, current_conductor_id FROM buses")
+    buses_map = {b["bus_id"]: b for b in cursor.fetchall()}
 
-    query += " ORDER BY id DESC LIMIT 100"
+    today_str = datetime.now(IST).strftime("%Y-%m-%d")
 
-    cursor.execute(query, tuple(params))
-    rows = cursor.fetchall()
+    # 2. Fetch all payments from database
+    cursor.execute("""
+        SELECT
+            LEFT(p.created_at, 10) AS duty_date,
+            p.conductor_id,
+            p.bus_id,
+            p.bus_number,
+            p.amount,
+            p.status,
+            p.payment_mode,
+            p.razorpay_payment_id,
+            p.passenger_count,
+            p.created_at
+        FROM payments p
+        ORDER BY p.id DESC
+    """)
+    payments = cursor.fetchall()
 
-    # Dynamic calculation of total revenue & tickets for active/recent shifts
-    logs_data = []
-    for r in rows:
-        item = dict(r)
-        item["collection_amount"] = float(item.get("collection_amount") or 0.0)
-        item["tickets_count"] = int(item.get("tickets_count") or 0)
-        logs_data.append(item)
+    # Aggregate by (duty_date, conductor_id, bus_id)
+    duty_dict = {}
+    for p in payments:
+        duty_date = str(p.get("duty_date") or p.get("created_at") or "")[:10]
+        if not duty_date:
+            continue
+
+        b_id = p.get("bus_id") or "BUS001"
+        b_info = buses_map.get(b_id, {})
+        b_num = p.get("bus_number") or b_info.get("bus_number") or b_id
+
+        c_id = p.get("conductor_id") or b_info.get("current_conductor_id") or "COND-01"
+        c_name = conductor_names.get(c_id, f"Conductor ({c_id})")
+
+        key = (duty_date, c_id, b_id)
+        if key not in duty_dict:
+            duty_dict[key] = {
+                "shift_id": f"SHIFT-{duty_date.replace('-', '')}-{c_id}",
+                "shift_date": duty_date,
+                "conductor_id": c_id,
+                "conductor_name": c_name,
+                "bus_id": b_id,
+                "bus_number": b_num,
+                "collection_amount": 0.0,
+                "tickets_count": 0,
+                "start_time": p.get("created_at"),
+                "end_time": p.get("created_at"),
+                "status": "ACTIVE" if duty_date == today_str else "COMPLETED",
+            }
+
+        entry = duty_dict[key]
+        if p.get("status") == "PAID":
+            mode = p.get("payment_mode")
+            rz_id = p.get("razorpay_payment_id")
+            amt = float(p.get("amount") or 0.0)
+            pax = int(p.get("passenger_count") or 1)
+            if mode != "PASS" and rz_id != "monthly_pass":
+                entry["collection_amount"] += amt
+            entry["tickets_count"] += pax
+
+    # 3. Also check conductor_shift_logs for any historical entries
+    cursor.execute("SELECT * FROM conductor_shift_logs ORDER BY id DESC")
+    shift_logs = cursor.fetchall()
+    for s in shift_logs:
+        s_date = str(s.get("shift_date") or s.get("start_time") or s.get("created_at") or "")[:10]
+        if not s_date:
+            s_date = today_str
+        c_id = s.get("conductor_id")
+        b_id = s.get("bus_id")
+        key = (s_date, c_id, b_id)
+
+        if key not in duty_dict:
+            c_name = conductor_names.get(c_id, s.get("conductor_name") or c_id)
+            b_num = s.get("bus_number") or buses_map.get(b_id, {}).get("bus_number") or b_id
+            duty_dict[key] = {
+                "shift_id": s.get("shift_id") or f"SHIFT-{s_date.replace('-', '')}-{c_id}",
+                "shift_date": s_date,
+                "conductor_id": c_id,
+                "conductor_name": c_name,
+                "bus_id": b_id,
+                "bus_number": b_num,
+                "collection_amount": float(s.get("collection_amount") or 0.0),
+                "tickets_count": int(s.get("tickets_count") or 0),
+                "start_time": s.get("start_time") or f"{s_date} 06:00:00",
+                "end_time": s.get("end_time"),
+                "status": "ACTIVE" if s_date == today_str else "COMPLETED",
+            }
+        else:
+            static_amt = float(s.get("collection_amount") or 0.0)
+            static_tix = int(s.get("tickets_count") or 0)
+            if static_amt > duty_dict[key]["collection_amount"]:
+                duty_dict[key]["collection_amount"] = static_amt
+            if static_tix > duty_dict[key]["tickets_count"]:
+                duty_dict[key]["tickets_count"] = static_tix
 
     cursor.close()
     conn.close()
 
-    return logs_data
+    result = list(duty_dict.values())
+    for r in result:
+        r["collection_amount"] = round(r["collection_amount"], 2)
+
+    # 4. Filter by optional query parameters
+    if bus_id:
+        result = [r for r in result if r["bus_id"] == bus_id]
+    if conductor_id:
+        result = [r for r in result if r["conductor_id"] == conductor_id]
+    if date:
+        result = [r for r in result if r["shift_date"] == date]
+
+    # Sort strictly by shift_date descending, then collection_amount descending
+    result.sort(key=lambda x: (str(x.get("shift_date") or ""), float(x.get("collection_amount") or 0)), reverse=True)
+    return result
 
 
 @app.post("/api/v1/conductor/shift-logs")

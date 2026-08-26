@@ -136,7 +136,10 @@ export default function PaymentHistoryScreen({ route, navigation }) {
     const newMonth = String(currentDate.getMonth() + 1).padStart(2, '0');
     const newDay = String(currentDate.getDate()).padStart(2, '0');
     const nextDateStr = `${newYear}-${newMonth}-${newDay}`;
-    setSelectedDate(nextDateStr);
+    if (nextDateStr !== selectedDate) {
+      setLoading(true);
+      setSelectedDate(nextDateStr);
+    }
   };
 
   const isToday = selectedDate === todayDateStr;
@@ -195,7 +198,7 @@ export default function PaymentHistoryScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
+      <StatusBar barStyle="light-content" backgroundColor="#1e1b4b" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -260,149 +263,144 @@ export default function PaymentHistoryScreen({ route, navigation }) {
       </View>
 
       {/* Main List Container */}
-      <FlatList
-        data={historyData.tickets}
-        keyExtractor={(item) => String(item.ticket_id || item.id || Math.random())}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.primaryText}
-            colors={[colors.primaryText]}
-          />
-        }
-        ListHeaderComponent={
-          <>
-            {/* Day Summary Metric Card */}
-            <View style={styles.summaryCard}>
-              <View style={styles.summaryTopRow}>
-                <View>
-                  <Text style={styles.summaryLabel}>TOTAL COLLECTION (PAID)</Text>
-                  <Text style={styles.summaryAmount}>₹{historyData.total_amount}</Text>
-                  {historyData.total_cashback > 0 && (
-                    <Text style={styles.summaryCashbackSubtitle}>
-                      🎁 ₹{historyData.total_cashback} Total Cashback Applied
-                    </Text>
-                  )}
-                </View>
+      {loading && !refreshing ? (
+        <View style={styles.singleLoadingContainer}>
+          <View style={styles.loadingSpinnerCircle}>
+            <ActivityIndicator size="large" color={colors.primaryText} />
+          </View>
+          <Text style={styles.loadingStateTitle}>Loading Records...</Text>
+          <Text style={styles.loadingStateSubtitle}>
+            Fetching collection & verified tickets for {formattedDisplayDate}
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={historyData.tickets}
+          keyExtractor={(item) => String(item.ticket_id || item.id || Math.random())}
+          contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primaryText}
+              colors={[colors.primaryText]}
+            />
+          }
+          ListHeaderComponent={
+            <>
+              {/* Day Summary Metric Card */}
+              <View style={styles.summaryCard}>
+                <View style={styles.summaryTopRow}>
+                  <View>
+                    <Text style={styles.summaryLabel}>TOTAL COLLECTION (PAID)</Text>
+                    <Text style={styles.summaryAmount}>₹{historyData.total_amount}</Text>
+                    {historyData.total_cashback > 0 && (
+                      <Text style={styles.summaryCashbackSubtitle}>
+                        🎁 ₹{historyData.total_cashback} Total Cashback Applied
+                      </Text>
+                    )}
+                  </View>
 
-                <View style={styles.summaryTicketsBadge}>
-                  <Text style={styles.summaryTicketsNumber}>{historyData.total_tickets}</Text>
-                  <Text style={styles.summaryTicketsLabel}>Tickets</Text>
+                  <View style={styles.summaryTicketsBadge}>
+                    <Text style={styles.summaryTicketsNumber}>{historyData.total_tickets}</Text>
+                    <Text style={styles.summaryTicketsLabel}>Tickets</Text>
+                  </View>
                 </View>
               </View>
 
-              {/* Buses Covered on this date */}
-              <View style={styles.busesCoveredRow}>
-                <Text style={styles.busesCoveredLabel}>BUS ON DUTY:</Text>
-                <Text style={styles.busesCoveredValue} numberOfLines={1}>
-                  {historyData.buses_covered.length > 0
-                    ? historyData.buses_covered.join(', ')
-                    : assignedBus?.bus_no || assignedBus?.bus_number || assignedBus?.bus_id || 'Assigned Bus'}
+              {/* List Heading */}
+              <View style={styles.listHeadingRow}>
+                <Text style={styles.listHeading}>
+                  Verified Tickets ({historyData.tickets.length})
                 </Text>
+                <Text style={styles.listSubheading}>Tap ticket to view receipt</Text>
               </View>
-            </View>
+            </>
+          }
+          renderItem={({ item }) => {
+            const isPass = item.payment_mode === 'PASS' || item.razorpay_payment_id === 'monthly_pass';
+            const fareAmount = isPass ? 0 : (item.fare || item.amount || 0);
+            const cashbackAmount = isPass ? 0 : (item.cashback || 0);
+            const paidAmount = isPass ? 0 : (item.total_paid ?? item.paidamount ?? item.amount ?? 0);
 
-            {/* List Heading */}
-            <View style={styles.listHeadingRow}>
-              <Text style={styles.listHeading}>
-                Verified Tickets ({historyData.tickets.length})
-              </Text>
-              <Text style={styles.listSubheading}>Tap ticket to view receipt</Text>
-            </View>
-          </>
-        }
-        renderItem={({ item }) => {
-          const isPass = item.payment_mode === 'PASS' || item.razorpay_payment_id === 'monthly_pass';
-          const fareAmount = isPass ? 0 : (item.fare || item.amount || 0);
-          const cashbackAmount = isPass ? 0 : (item.cashback || 0);
-          const paidAmount = isPass ? 0 : (item.total_paid ?? item.paidamount ?? item.amount ?? 0);
+            return (
+              <TouchableOpacity
+                style={styles.ticketCard}
+                onPress={() => setSelectedTicketModal(item)}
+                activeOpacity={0.85}
+              >
+                {/* Ticket Card Top */}
+                <View style={styles.ticketCardHeader}>
+                  <View style={styles.ticketIdRow}>
+                    <Text style={styles.ticketIdText}>#{item.ticket_id}</Text>
+                    {/* Bus Number Pill */}
+                    <View style={styles.busNumberPill}>
+                      <Text style={styles.busNumberPillText}>
+                        🚍 {item.bus_number || item.bus_id || 'BUS'}
+                      </Text>
+                    </View>
+                  </View>
 
-          return (
-            <TouchableOpacity
-              style={styles.ticketCard}
-              onPress={() => setSelectedTicketModal(item)}
-              activeOpacity={0.85}
-            >
-              {/* Ticket Card Top */}
-              <View style={styles.ticketCardHeader}>
-                <View style={styles.ticketIdRow}>
-                  <Text style={styles.ticketIdText}>#{item.ticket_id}</Text>
-                  {/* Bus Number Pill */}
-                  <View style={styles.busNumberPill}>
-                    <Text style={styles.busNumberPillText}>
-                      🚍 {item.bus_number || item.bus_id || 'BUS'}
+                  {/* Mode Badge */}
+                  <View style={[styles.modeBadge, isPass ? styles.modeBadgePass : styles.modeBadgeUpi]}>
+                    <Text style={[styles.modeBadgeText, isPass ? styles.modeBadgePassText : styles.modeBadgeUpiText]}>
+                      {isPass ? 'MONTHLY PASS' : 'UPI PAYMENT'}
                     </Text>
                   </View>
                 </View>
 
-                {/* Mode Badge */}
-                <View style={[styles.modeBadge, isPass ? styles.modeBadgePass : styles.modeBadgeUpi]}>
-                  <Text style={[styles.modeBadgeText, isPass ? styles.modeBadgePassText : styles.modeBadgeUpiText]}>
-                    {isPass ? 'MONTHLY PASS' : 'UPI PAYMENT'}
+                {/* Route & Passenger Details */}
+                <View style={styles.ticketBody}>
+                  <Text style={styles.routeText} numberOfLines={1}>
+                    {item.origin} ➔ {item.destination}
                   </Text>
-                </View>
-              </View>
-
-              {/* Route & Passenger Details */}
-              <View style={styles.ticketBody}>
-                <Text style={styles.routeText} numberOfLines={1}>
-                  {item.origin} ➔ {item.destination}
-                </Text>
-                <Text style={styles.passengerText}>
-                  👥 {item.passenger_count || 1} Passenger(s) • ⏰ {item.time_formatted || 'Today'}
-                </Text>
-              </View>
-
-              {/* Explicit 3-Column Breakdown: FARE | CASHBACK | TOTAL PAID */}
-              <View style={styles.priceBreakdownBox}>
-                <View style={styles.priceColumn}>
-                  <Text style={styles.priceColLabel}>FARE</Text>
-                  <Text style={styles.priceColValue}>
-                    {isPass ? '₹0' : `₹${fareAmount}`}
+                  <Text style={styles.passengerText}>
+                    👥 {item.passenger_count || 1} Passenger(s) • ⏰ {item.time_formatted || 'Today'}
                   </Text>
                 </View>
 
-                <View style={styles.priceDivider} />
+                {/* Explicit 3-Column Breakdown: FARE | CASHBACK | TOTAL PAID */}
+                <View style={styles.priceBreakdownBox}>
+                  <View style={styles.priceColumn}>
+                    <Text style={styles.priceColLabel}>FARE</Text>
+                    <Text style={styles.priceColValue}>
+                      {isPass ? '₹0' : `₹${fareAmount}`}
+                    </Text>
+                  </View>
 
-                <View style={styles.priceColumn}>
-                  <Text style={styles.priceColLabel}>CASHBACK</Text>
-                  <Text style={[styles.priceColValue, cashbackAmount > 0 ? styles.cashbackPositiveText : styles.priceColValueNeutral]}>
-                    {cashbackAmount > 0 ? `-₹${cashbackAmount}` : '₹0'}
+                  <View style={styles.priceDivider} />
+
+                  <View style={styles.priceColumn}>
+                    <Text style={styles.priceColLabel}>CASHBACK</Text>
+                    <Text style={[styles.priceColValue, cashbackAmount > 0 ? styles.cashbackPositiveText : styles.priceColValueNeutral]}>
+                      {cashbackAmount > 0 ? `-₹${cashbackAmount}` : '₹0'}
+                    </Text>
+                  </View>
+
+                  <View style={styles.priceDivider} />
+
+                  <View style={styles.priceColumn}>
+                    <Text style={styles.priceColLabel}>TOTAL PAID</Text>
+                    <Text style={[styles.priceColValue, isPass ? styles.pricePaidPassText : styles.pricePaidUpiText]}>
+                      {isPass ? 'PASS RIDE' : `₹${paidAmount}`}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Bottom Status Checkmark */}
+                <View style={styles.ticketCardFooter}>
+                  <Text style={styles.ticketTimeText}>
+                    {item.created_at ? item.created_at.slice(0, 19).replace('T', ' ') : 'Verified'}
                   </Text>
+
+                  <View style={styles.verifiedRow}>
+                    <Text style={styles.verifiedText}>✓ Verified & Paid</Text>
+                  </View>
                 </View>
-
-                <View style={styles.priceDivider} />
-
-                <View style={styles.priceColumn}>
-                  <Text style={styles.priceColLabel}>TOTAL PAID</Text>
-                  <Text style={[styles.priceColValue, isPass ? styles.pricePaidPassText : styles.pricePaidUpiText]}>
-                    {isPass ? 'PASS RIDE' : `₹${paidAmount}`}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Bottom Status Checkmark */}
-              <View style={styles.ticketCardFooter}>
-                <Text style={styles.ticketTimeText}>
-                  {item.created_at ? item.created_at.slice(0, 19).replace('T', ' ') : 'Verified'}
-                </Text>
-
-                <View style={styles.verifiedRow}>
-                  <Text style={styles.verifiedText}>✓ Verified & Paid</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          );
-        }}
-        ListEmptyComponent={
-          loading ? (
-            <View style={styles.emptyContainer}>
-              <ActivityIndicator size="large" color={colors.primaryText} />
-              <Text style={styles.emptyText}>Loading tickets for {formattedDisplayDate}...</Text>
-            </View>
-          ) : (
+              </TouchableOpacity>
+            );
+          }}
+          ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyEmoji}>📜</Text>
               <Text style={styles.emptyTitle}>No payments on this date</Text>
@@ -413,9 +411,9 @@ export default function PaymentHistoryScreen({ route, navigation }) {
                 <Text style={styles.emptyRetryBtnText}>🔄 Refresh Date</Text>
               </TouchableOpacity>
             </View>
-          )
-        }
-      />
+          }
+        />
+      )}
 
       {/* ========================================================= */}
       {/* MODAL 1: CUSTOM DATE PICKER MODAL */}
@@ -505,7 +503,10 @@ export default function PaymentHistoryScreen({ route, navigation }) {
                     ]}
                     disabled={item.isFuture}
                     onPress={() => {
-                      setSelectedDate(item.dateStr);
+                      if (item.dateStr !== selectedDate) {
+                        setLoading(true);
+                        setSelectedDate(item.dateStr);
+                      }
                       setShowDatePickerModal(false);
                     }}
                   >
@@ -527,7 +528,10 @@ export default function PaymentHistoryScreen({ route, navigation }) {
             <TouchableOpacity
               style={styles.modalTodayBtn}
               onPress={() => {
-                setSelectedDate(todayDateStr);
+                if (todayDateStr !== selectedDate) {
+                  setLoading(true);
+                  setSelectedDate(todayDateStr);
+                }
                 setShowDatePickerModal(false);
               }}
             >
@@ -538,113 +542,105 @@ export default function PaymentHistoryScreen({ route, navigation }) {
       </Modal>
 
       {/* ========================================================= */}
-      {/* MODAL 2: TICKET RECEIPT & DETAILS MODAL */}
+      {/* MODAL 2: TICKET RECEIPT & DETAILS BOTTOM SHEET MODAL */}
       {/* ========================================================= */}
       <Modal
-        visible={!!selectedTicketModal}
-        animationType="slide"
+        visible={Boolean(selectedTicketModal)}
         transparent
+        animationType="slide"
         onRequestClose={() => setSelectedTicketModal(null)}
       >
-        <Pressable style={styles.modalBackdrop} onPress={() => setSelectedTicketModal(null)}>
-          <Pressable style={styles.ticketDetailsCard} onPress={() => { }}>
+        <Pressable style={styles.detailsBackdrop} onPress={() => setSelectedTicketModal(null)}>
+          <Pressable style={styles.detailsSheet} onPress={() => { }}>
             {selectedTicketModal && (
               <>
+                <View style={styles.sheetHandle} />
                 <View style={styles.detailsHeader}>
                   <View>
-                    <Text style={styles.detailsTicketId}>Ticket #{selectedTicketModal.ticket_id}</Text>
-                    <Text style={styles.detailsSubtitle}>
-                      Bus: {selectedTicketModal.bus_number || selectedTicketModal.bus_id} • {selectedTicketModal.time_formatted || 'Today'}
-                    </Text>
+                    <Text style={styles.detailsEyebrow}>VERIFIED RECEIPT</Text>
+                    <Text style={styles.detailsTitle}>Ticket #{selectedTicketModal.ticket_id}</Text>
                   </View>
                   <TouchableOpacity
-                    style={styles.modalCloseBtn}
+                    style={styles.detailsCloseButton}
                     onPress={() => setSelectedTicketModal(null)}
+                    accessibilityLabel="Close ticket details"
                   >
-                    <Text style={styles.modalCloseBtnText}>✕</Text>
+                    <Text style={styles.detailsCloseText}>×</Text>
                   </TouchableOpacity>
                 </View>
 
-                <ScrollView style={{ maxHeight: 380 }}>
-                  <View style={styles.receiptBox}>
-                    <View style={styles.receiptRow}>
-                      <Text style={styles.receiptLabel}>PAYMENT STATUS</Text>
-                      <Text style={styles.receiptStatus}>✓ VERIFIED & PAID</Text>
-                    </View>
+                <View style={styles.detailsRouteBox}>
+                  <Text style={styles.detailsRouteLabel}>JOURNEY ROUTE</Text>
+                  <Text style={styles.detailsRouteText}>
+                    {selectedTicketModal.origin}  ➔  {selectedTicketModal.destination}
+                  </Text>
+                </View>
 
-                    <View style={styles.receiptRow}>
-                      <Text style={styles.receiptLabel}>ROUTE</Text>
-                      <Text style={styles.receiptVal}>
-                        {selectedTicketModal.origin} ➔ {selectedTicketModal.destination}
-                      </Text>
-                    </View>
-
-                    <View style={styles.receiptRow}>
-                      <Text style={styles.receiptLabel}>BUS NUMBER</Text>
-                      <Text style={styles.receiptVal}>{selectedTicketModal.bus_number || selectedTicketModal.bus_id}</Text>
-                    </View>
-
-                    <View style={styles.receiptRow}>
-                      <Text style={styles.receiptLabel}>PASSENGER COUNT</Text>
-                      <Text style={styles.receiptVal}>{selectedTicketModal.passenger_count || 1}</Text>
-                    </View>
-
-                    <View style={styles.receiptRow}>
-                      <Text style={styles.receiptLabel}>PAYMENT MODE</Text>
-                      <Text style={styles.receiptVal}>
-                        {selectedTicketModal.payment_mode === 'PASS' || selectedTicketModal.razorpay_payment_id === 'monthly_pass' ? 'Monthly Pass' : 'Razorpay UPI'}
-                      </Text>
-                    </View>
-
-                    {/* Fare Itemized Details */}
-                    <View style={styles.receiptRow}>
-                      <Text style={styles.receiptLabel}>STANDARD FARE</Text>
-                      <Text style={styles.receiptVal}>
-                        ₹{selectedTicketModal.fare || selectedTicketModal.amount || 0}
-                      </Text>
-                    </View>
-
-                    <View style={styles.receiptRow}>
-                      <Text style={styles.receiptLabel}>CASHBACK DISCOUNT</Text>
-                      <Text style={[styles.receiptVal, { color: colors.primaryText, fontWeight: '800' }]}>
-                        {selectedTicketModal.cashback > 0 ? `- ₹${selectedTicketModal.cashback}` : '₹0.00'}
-                      </Text>
-                    </View>
-
-                    <View style={[styles.receiptRow, styles.receiptTotalPaidRow]}>
-                      <Text style={styles.receiptTotalPaidLabel}>TOTAL PAID AMOUNT</Text>
-                      <Text style={styles.receiptTotalPaidAmount}>
-                        {selectedTicketModal.payment_mode === 'PASS' || selectedTicketModal.razorpay_payment_id === 'monthly_pass'
-                          ? 'FREE (MONTHLY PASS)'
-                          : `₹${selectedTicketModal.total_paid ?? selectedTicketModal.paidamount ?? selectedTicketModal.amount ?? 0}`}
-                      </Text>
-                    </View>
-
-                    {selectedTicketModal.phone_number && (
-                      <View style={styles.receiptRow}>
-                        <Text style={styles.receiptLabel}>PASSENGER MOBILE</Text>
-                        <Text style={styles.receiptVal}>{selectedTicketModal.phone_number}</Text>
-                      </View>
-                    )}
-
-                    <View style={styles.receiptRow}>
-                      <Text style={styles.receiptLabel}>TRANSACTION TIME</Text>
-                      <Text style={styles.receiptVal}>{selectedTicketModal.created_at || 'Today'}</Text>
-                    </View>
+                <View style={styles.detailsGrid}>
+                  <View style={styles.detailCell}>
+                    <Text style={styles.detailsLabel}>BUS NUMBER</Text>
+                    <Text style={styles.detailsValue}>
+                      {selectedTicketModal.bus_number || selectedTicketModal.bus_no || selectedTicketModal.bus_id || 'Assigned Bus'}
+                    </Text>
                   </View>
-                </ScrollView>
+                  <View style={styles.detailCell}>
+                    <Text style={styles.detailsLabel}>PASSENGERS</Text>
+                    <Text style={styles.detailsValue}>{selectedTicketModal.passenger_count ?? 1}</Text>
+                  </View>
+                  <View style={styles.detailCell}>
+                    <Text style={styles.detailsLabel}>TIME</Text>
+                    <Text style={styles.detailsValue}>
+                      {selectedTicketModal.time_formatted || (selectedTicketModal.created_at ? (selectedTicketModal.created_at.includes('T') ? selectedTicketModal.created_at.split('T')[1].substring(0, 5) : selectedTicketModal.created_at.split(' ')[1]?.substring(0, 5) || 'Today') : 'Just Now')}
+                    </Text>
+                  </View>
+                  <View style={styles.detailCell}>
+                    <Text style={styles.detailsLabel}>PAYMENT MODE</Text>
+                    <Text style={styles.detailsValue}>
+                      {selectedTicketModal.payment_mode === 'PASS' || selectedTicketModal.razorpay_payment_id === 'monthly_pass'
+                        ? 'Monthly Pass'
+                        : 'Razorpay UPI'}
+                    </Text>
+                  </View>
+                </View>
 
-                <TouchableOpacity
-                  style={styles.closeReceiptBtn}
-                  onPress={() => setSelectedTicketModal(null)}
-                >
-                  <Text style={styles.closeReceiptBtnText}>Done</Text>
-                </TouchableOpacity>
+                {/* Amount Breakup */}
+                <View style={styles.receiptBreakupCard}>
+                  <View style={styles.receiptBreakupRow}>
+                    <Text style={styles.receiptBreakupLabel}>Standard Fare</Text>
+                    <Text style={styles.receiptBreakupVal}>
+                      ₹{selectedTicketModal.fare || selectedTicketModal.amount || 0}
+                    </Text>
+                  </View>
+
+                  <View style={styles.receiptBreakupRow}>
+                    <Text style={styles.receiptBreakupLabel}>Cashback Discount</Text>
+                    <Text style={[styles.receiptBreakupVal, { color: colors.primaryText, fontWeight: '800' }]}>
+                      {selectedTicketModal.cashback > 0 ? `- ₹${selectedTicketModal.cashback}` : '₹0.00'}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.receiptBreakupRow, styles.receiptBreakupTotalRow]}>
+                    <Text style={styles.receiptTotalLabel}>TOTAL PAID AMOUNT</Text>
+                    <Text style={styles.receiptTotalVal}>
+                      {selectedTicketModal.payment_mode === 'PASS' || selectedTicketModal.razorpay_payment_id === 'monthly_pass'
+                        ? 'FREE PASS RIDE'
+                        : `₹${selectedTicketModal.paidamount ?? selectedTicketModal.total_paid ?? selectedTicketModal.amount ?? 0}`}
+                    </Text>
+                  </View>
+                </View>
+
+                {selectedTicketModal.razorpay_payment_id && selectedTicketModal.razorpay_payment_id !== 'monthly_pass' && (
+                  <View style={styles.transactionBox}>
+                    <Text style={styles.detailsLabel}>TRANSACTION ID</Text>
+                    <Text style={styles.transactionText}>{selectedTicketModal.razorpay_payment_id}</Text>
+                  </View>
+                )}
               </>
             )}
           </Pressable>
         </Pressable>
       </Modal>
+
     </SafeAreaView>
   );
 }
@@ -655,7 +651,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#1e1b4b',
     paddingHorizontal: 18,
     paddingVertical: 14,
     paddingTop: Platform.OS === 'android' ? 40 : 14,
@@ -663,7 +659,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: colors.primarySurface,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerLeft: {
     flexDirection: 'row',
@@ -675,10 +671,12 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: '#312e81',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   backButtonText: {
     color: '#ffffff',
@@ -691,7 +689,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   headerSubtitle: {
-    color: colors.primaryMuted,
+    color: '#c7d2fe',
     fontSize: 11,
     fontWeight: '700',
     marginTop: 1,
@@ -815,6 +813,34 @@ const styles = StyleSheet.create({
   listContainer: {
     padding: 16,
     paddingBottom: 40,
+  },
+  singleLoadingContainer: {
+    padding: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 50,
+  },
+  loadingSpinnerCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  loadingStateTitle: {
+    color: colors.textStrong,
+    fontSize: 16,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  loadingStateSubtitle: {
+    color: colors.textMuted,
+    fontSize: 12,
+    textAlign: 'center',
+    maxWidth: 240,
+    lineHeight: 18,
   },
   summaryCard: {
     backgroundColor: colors.primary,
@@ -1228,96 +1254,143 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
   },
-  // Ticket Details Receipt Modal
-  ticketDetailsCard: {
-    width: '100%',
-    maxWidth: 350,
+  // Ticket Details Bottom Sheet Modal (Identical to LiveVerificationScreen)
+  detailsBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  detailsSheet: {
     backgroundColor: colors.surface,
-    borderRadius: 24,
-    padding: 20,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: colors.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
   },
   detailsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
-  detailsTicketId: {
-    color: colors.textStrong,
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  detailsSubtitle: {
-    color: colors.textMuted,
-    fontSize: 11,
-    marginTop: 2,
-  },
-  receiptBox: {
-    backgroundColor: colors.background,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  receiptRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
-  },
-  receiptLabel: {
+  detailsEyebrow: {
     color: colors.textSubtle,
     fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 0.6,
+    letterSpacing: 0.8,
   },
-  receiptVal: {
+  detailsTitle: {
+    color: colors.textStrong,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  detailsCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailsCloseText: {
+    fontSize: 18,
+    color: colors.textMuted,
+    fontWeight: '700',
+  },
+  detailsRouteBox: {
+    backgroundColor: colors.background,
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 14,
+  },
+  detailsRouteLabel: {
+    color: colors.textSubtle,
+    fontSize: 9,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  detailsRouteText: {
+    color: colors.textStrong,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  detailsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 14,
+  },
+  detailCell: {
+    width: '50%',
+    paddingVertical: 6,
+  },
+  detailsLabel: {
+    color: colors.textSubtle,
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  detailsValue: {
+    color: colors.textStrong,
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  receiptBreakupCard: {
+    backgroundColor: colors.background,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 14,
+  },
+  receiptBreakupRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  receiptBreakupLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  receiptBreakupVal: {
     color: colors.textStrong,
     fontSize: 12,
     fontWeight: '700',
   },
-  receiptStatus: {
+  receiptBreakupTotalRow: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    marginTop: 6,
+    paddingTop: 8,
+  },
+  receiptTotalLabel: {
     color: colors.successStrong,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '900',
   },
-  receiptTotalPaidRow: {
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-    paddingHorizontal: 8,
-    borderRadius: 10,
-    marginVertical: 4,
-    borderBottomWidth: 0,
-  },
-  receiptTotalPaidLabel: {
-    color: colors.successStrong,
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  receiptTotalPaidAmount: {
+  receiptTotalVal: {
     color: colors.successStrong,
     fontSize: 16,
     fontWeight: '900',
   },
-  closeReceiptBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 16,
+  transactionBox: {
+    backgroundColor: colors.background,
+    padding: 10,
+    borderRadius: 10,
   },
-  closeReceiptBtnText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '800',
+  transactionText: {
+    color: colors.textStrong,
+    fontFamily: 'monospace',
+    fontSize: 11,
+    marginTop: 2,
   },
 });
+
