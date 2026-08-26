@@ -36,6 +36,7 @@ export default function PaymentHistoryScreen({ route, navigation }) {
   const [historyData, setHistoryData] = useState({
     total_amount: 0,
     total_tickets: 0,
+    total_cashback: 0,
     buses_covered: [],
     tickets: [],
   });
@@ -77,11 +78,12 @@ export default function PaymentHistoryScreen({ route, navigation }) {
         setHistoryData({
           total_amount: data.total_amount || 0,
           total_tickets: data.total_tickets || 0,
+          total_cashback: data.total_cashback || 0,
           buses_covered: data.buses_covered || [],
           tickets: Array.isArray(data.tickets) ? data.tickets : [],
         });
       } else {
-        setHistoryData({ total_amount: 0, total_tickets: 0, buses_covered: [], tickets: [] });
+        setHistoryData({ total_amount: 0, total_tickets: 0, total_cashback: 0, buses_covered: [], tickets: [] });
       }
     } catch (e) {
       // network error
@@ -213,52 +215,12 @@ export default function PaymentHistoryScreen({ route, navigation }) {
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.calendarHeaderBtn}
-          onPress={() => setShowDatePickerModal(true)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.calendarHeaderBtnText}>📅 Calendar</Text>
-        </TouchableOpacity>
+
       </View>
 
       {/* Interactive Date Switcher Bar */}
       <View style={styles.dateBar}>
-        {/* Quick Date Pills */}
-        <View style={styles.pillRow}>
-          <TouchableOpacity
-            style={[styles.datePill, isToday && styles.activeDatePill]}
-            onPress={() => setSelectedDate(todayDateStr)}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.datePillText, isToday && styles.activeDatePillText]}>Today</Text>
-          </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.datePill, isYesterday && styles.activeDatePill]}
-            onPress={() => {
-              const d = new Date();
-              d.setDate(d.getDate() - 1);
-              const y = d.getFullYear();
-              const m = String(d.getMonth() + 1).padStart(2, '0');
-              const day = String(d.getDate()).padStart(2, '0');
-              setSelectedDate(`${y}-${m}-${day}`);
-            }}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.datePillText, isYesterday && styles.activeDatePillText]}>Yesterday</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.datePill, !isToday && !isYesterday && styles.activeDatePill]}
-            onPress={() => setShowDatePickerModal(true)}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.datePillText, !isToday && !isYesterday && styles.activeDatePillText]}>
-              {!isToday && !isYesterday ? selectedDate : 'Select Date 📅'}
-            </Text>
-          </TouchableOpacity>
-        </View>
 
         {/* Day Navigation Banner with Chevron Arrows */}
         <View style={styles.dayNavCard}>
@@ -316,8 +278,13 @@ export default function PaymentHistoryScreen({ route, navigation }) {
             <View style={styles.summaryCard}>
               <View style={styles.summaryTopRow}>
                 <View>
-                  <Text style={styles.summaryLabel}>TOTAL COLLECTION</Text>
+                  <Text style={styles.summaryLabel}>TOTAL COLLECTION (PAID)</Text>
                   <Text style={styles.summaryAmount}>₹{historyData.total_amount}</Text>
+                  {historyData.total_cashback > 0 && (
+                    <Text style={styles.summaryCashbackSubtitle}>
+                      🎁 ₹{historyData.total_cashback} Total Cashback Applied
+                    </Text>
+                  )}
                 </View>
 
                 <View style={styles.summaryTicketsBadge}>
@@ -348,6 +315,9 @@ export default function PaymentHistoryScreen({ route, navigation }) {
         }
         renderItem={({ item }) => {
           const isPass = item.payment_mode === 'PASS' || item.razorpay_payment_id === 'monthly_pass';
+          const fareAmount = isPass ? 0 : (item.fare || item.amount || 0);
+          const cashbackAmount = isPass ? 0 : (item.cashback || 0);
+          const paidAmount = isPass ? 0 : (item.total_paid ?? item.paidamount ?? item.amount ?? 0);
 
           return (
             <TouchableOpacity
@@ -385,19 +355,42 @@ export default function PaymentHistoryScreen({ route, navigation }) {
                 </Text>
               </View>
 
-              {/* Bottom Price & Status */}
-              <View style={styles.ticketCardFooter}>
-                <View>
-                  <Text style={isPass ? styles.amountTextPass : styles.amountText}>
-                    {isPass ? 'Free Pass Ride' : `₹${item.paidamount ?? item.amount ?? 0}`}
+              {/* Explicit 3-Column Breakdown: FARE | CASHBACK | TOTAL PAID */}
+              <View style={styles.priceBreakdownBox}>
+                <View style={styles.priceColumn}>
+                  <Text style={styles.priceColLabel}>FARE</Text>
+                  <Text style={styles.priceColValue}>
+                    {isPass ? '₹0' : `₹${fareAmount}`}
                   </Text>
-                  {item.cashback > 0 && (
-                    <Text style={styles.cashbackText}>₹{item.cashback} Cashback Applied</Text>
-                  )}
                 </View>
 
+                <View style={styles.priceDivider} />
+
+                <View style={styles.priceColumn}>
+                  <Text style={styles.priceColLabel}>CASHBACK</Text>
+                  <Text style={[styles.priceColValue, cashbackAmount > 0 ? styles.cashbackPositiveText : styles.priceColValueNeutral]}>
+                    {cashbackAmount > 0 ? `-₹${cashbackAmount}` : '₹0'}
+                  </Text>
+                </View>
+
+                <View style={styles.priceDivider} />
+
+                <View style={styles.priceColumn}>
+                  <Text style={styles.priceColLabel}>TOTAL PAID</Text>
+                  <Text style={[styles.priceColValue, isPass ? styles.pricePaidPassText : styles.pricePaidUpiText]}>
+                    {isPass ? 'PASS RIDE' : `₹${paidAmount}`}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Bottom Status Checkmark */}
+              <View style={styles.ticketCardFooter}>
+                <Text style={styles.ticketTimeText}>
+                  {item.created_at ? item.created_at.slice(0, 19).replace('T', ' ') : 'Verified'}
+                </Text>
+
                 <View style={styles.verifiedRow}>
-                  <Text style={styles.verifiedText}>✓ Verified</Text>
+                  <Text style={styles.verifiedText}>✓ Verified & Paid</Text>
                 </View>
               </View>
             </TouchableOpacity>
@@ -603,10 +596,27 @@ export default function PaymentHistoryScreen({ route, navigation }) {
                       </Text>
                     </View>
 
+                    {/* Fare Itemized Details */}
                     <View style={styles.receiptRow}>
-                      <Text style={styles.receiptLabel}>FARE AMOUNT</Text>
-                      <Text style={styles.receiptAmount}>
-                        ₹{selectedTicketModal.paidamount ?? selectedTicketModal.amount ?? 0}
+                      <Text style={styles.receiptLabel}>STANDARD FARE</Text>
+                      <Text style={styles.receiptVal}>
+                        ₹{selectedTicketModal.fare || selectedTicketModal.amount || 0}
+                      </Text>
+                    </View>
+
+                    <View style={styles.receiptRow}>
+                      <Text style={styles.receiptLabel}>CASHBACK DISCOUNT</Text>
+                      <Text style={[styles.receiptVal, { color: colors.primaryText, fontWeight: '800' }]}>
+                        {selectedTicketModal.cashback > 0 ? `- ₹${selectedTicketModal.cashback}` : '₹0.00'}
+                      </Text>
+                    </View>
+
+                    <View style={[styles.receiptRow, styles.receiptTotalPaidRow]}>
+                      <Text style={styles.receiptTotalPaidLabel}>TOTAL PAID AMOUNT</Text>
+                      <Text style={styles.receiptTotalPaidAmount}>
+                        {selectedTicketModal.payment_mode === 'PASS' || selectedTicketModal.razorpay_payment_id === 'monthly_pass'
+                          ? 'FREE (MONTHLY PASS)'
+                          : `₹${selectedTicketModal.total_paid ?? selectedTicketModal.paidamount ?? selectedTicketModal.amount ?? 0}`}
                       </Text>
                     </View>
 
@@ -835,6 +845,12 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     marginTop: 2,
   },
+  summaryCashbackSubtitle: {
+    color: '#a5f3fc',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 4,
+  },
   summaryTicketsBadge: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     paddingHorizontal: 14,
@@ -950,7 +966,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   ticketBody: {
-    marginBottom: 10,
+    marginBottom: 12,
   },
   routeText: {
     color: colors.textBody,
@@ -963,29 +979,69 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
+  // 3-Column Fare / Cashback / Total Paid Breakdown
+  priceBreakdownBox: {
+    backgroundColor: colors.background,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    marginBottom: 10,
+  },
+  priceColumn: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  priceDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: colors.border,
+  },
+  priceColLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: colors.textSubtle,
+    letterSpacing: 0.6,
+    marginBottom: 3,
+  },
+  priceColValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.textStrong,
+  },
+  priceColValueNeutral: {
+    color: colors.textMuted,
+  },
+  cashbackPositiveText: {
+    color: colors.primaryText,
+    fontWeight: '900',
+  },
+  pricePaidUpiText: {
+    color: colors.successStrong,
+    fontWeight: '900',
+    fontSize: 14,
+  },
+  pricePaidPassText: {
+    color: colors.warningStrong,
+    fontWeight: '900',
+    fontSize: 12,
+  },
   ticketCardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    paddingTop: 10,
+    alignItems: 'center',
+    paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: colors.borderSubtle,
   },
-  amountText: {
-    color: colors.successStrong,
-    fontSize: 17,
-    fontWeight: '900',
-  },
-  amountTextPass: {
-    color: colors.warningStrong,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  cashbackText: {
-    color: colors.primaryText,
+  ticketTimeText: {
+    color: colors.textSubtle,
     fontSize: 10,
-    fontWeight: '700',
-    marginTop: 1,
+    fontWeight: '600',
   },
   verifiedRow: {
     backgroundColor: 'rgba(16, 185, 129, 0.1)',
@@ -1235,7 +1291,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '900',
   },
-  receiptAmount: {
+  receiptTotalPaidRow: {
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    marginVertical: 4,
+    borderBottomWidth: 0,
+  },
+  receiptTotalPaidLabel: {
+    color: colors.successStrong,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  receiptTotalPaidAmount: {
     color: colors.successStrong,
     fontSize: 16,
     fontWeight: '900',

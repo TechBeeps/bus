@@ -820,40 +820,126 @@ def tickets():
     return [dict(r) for r in rows]
 
 
-@app.get("/api/v1/tickets/{bus_id}")
-def ticketsByid(bus_id: str):
+@app.get("/api/v1/tickets/conductor/{conductor_id}")
+def get_tickets_by_conductor(conductor_id: str):
+    return fetch_live_tickets(conductor_id=conductor_id)
+
+
+@app.get("/api/v1/tickets/{identifier}")
+def ticketsByid(identifier: str, conductor_id: Optional[str] = None):
+    # If identifier starts with COND- or conductor_id param passed, route by conductor
+    if conductor_id or str(identifier).upper().startswith("COND-"):
+        target_cond = conductor_id or identifier
+        return fetch_live_tickets(conductor_id=target_cond)
+    else:
+        return fetch_live_tickets(bus_id=identifier)
+
+
+def fetch_live_tickets(conductor_id: Optional[str] = None, bus_id: Optional[str] = None):
+    """
+    Fetch today's verified tickets and payments by conductor_id (recommended) or bus_id.
+    Includes bus_number, fare, cashback, and paid amount breakdown.
+    """
     try:
         conn = get_connection()
         cursor = get_cursor(conn)
 
-        cursor.execute("""
-            SELECT
-                id AS ticket_id,
-                amount,
-                cashback,
-                origin,
-                destination,
-                passenger_count,
-                razorpay_payment_id,
-                created_at
-            FROM payments
-            WHERE bus_id = %s
-            AND status = %s
-            AND (DATE(created_at) = CURDATE() OR created_at LIKE CONCAT(CURDATE(), '%%'))
-        """, (bus_id, "PAID"))
+        if conductor_id:
+            cursor.execute("SELECT assigned_bus_id FROM conductors WHERE conductor_id = %s", (conductor_id,))
+            cond_row = cursor.fetchone()
+            assigned_bus_id = cond_row["assigned_bus_id"] if cond_row else None
+
+            query = """
+                SELECT
+                    p.id AS ticket_id,
+                    p.payment_id,
+                    p.bus_id,
+                    p.bus_number,
+                    p.conductor_id,
+                    p.amount,
+                    p.cashback,
+                    p.origin,
+                    p.destination,
+                    p.passenger_count,
+                    p.razorpay_payment_id,
+                    p.payment_mode,
+                    p.created_at,
+                    b.bus_number AS bus_table_number
+                FROM payments p
+                LEFT JOIN buses b ON p.bus_id = b.bus_id
+                WHERE p.status = 'PAID'
+                  AND (DATE(p.created_at) = CURDATE() OR p.created_at LIKE CONCAT(CURDATE(), '%%'))
+                  AND (
+                      p.conductor_id = %s
+                      OR (
+                          p.conductor_id IS NULL
+                          AND (
+                              p.bus_id = %s
+                              OR p.bus_id IN (
+                                  SELECT bus_id FROM conductor_shift_logs
+                                  WHERE conductor_id = %s AND (shift_date = CURDATE() OR start_time LIKE CONCAT(CURDATE(), '%%'))
+                              )
+                          )
+                      )
+                  )
+                ORDER BY p.id DESC
+            """
+            cursor.execute(query, (conductor_id, assigned_bus_id, conductor_id))
+        else:
+            query = """
+                SELECT
+                    p.id AS ticket_id,
+                    p.payment_id,
+                    p.bus_id,
+                    p.bus_number,
+                    p.conductor_id,
+                    p.amount,
+                    p.cashback,
+                    p.origin,
+                    p.destination,
+                    p.passenger_count,
+                    p.razorpay_payment_id,
+                    p.payment_mode,
+                    p.created_at,
+                    b.bus_number AS bus_table_number
+                FROM payments p
+                LEFT JOIN buses b ON p.bus_id = b.bus_id
+                WHERE p.bus_id = %s
+                  AND p.status = 'PAID'
+                  AND (DATE(p.created_at) = CURDATE() OR p.created_at LIKE CONCAT(CURDATE(), '%%'))
+                ORDER BY p.id DESC
+            """
+            cursor.execute(query, (bus_id,))
 
         rows = cursor.fetchall()
         cursor.close()
         conn.close()
 
-        data = [
-            {
-                **dict(row),
-                "amount": float(row["amount"] or 0) + float(row["cashback"] or 0),
-                "paidamount": float(row["amount"] or 0),
-            }
-            for row in rows
-        ]
+        data = []
+        for row in rows:
+            amt = float(row.get("amount") or 0)
+            cb = float(row.get("cashback") or 0)
+            bus_num = row.get("bus_number") or row.get("bus_table_number") or row.get("bus_id") or "N/A"
+            is_pass = row.get("razorpay_payment_id") == "monthly_pass" or row.get("payment_mode") == "PASS"
+
+            data.append({
+                "ticket_id": row["ticket_id"],
+                "payment_id": row.get("payment_id"),
+                "bus_id": row.get("bus_id"),
+                "bus_number": bus_num,
+                "bus_no": bus_num,
+                "fare": round(amt + cb, 2),
+                "amount": round(amt + cb, 2),
+                "paidamount": round(amt, 2),
+                "total_paid": round(amt, 2),
+                "cashback": round(cb, 2),
+                "origin": row.get("origin"),
+                "destination": row.get("destination"),
+                "passenger_count": int(row.get("passenger_count") or 1),
+                "razorpay_payment_id": row.get("razorpay_payment_id"),
+                "payment_mode": "PASS" if is_pass else "UPI",
+                "created_at": row.get("created_at"),
+            })
 
         return {
             "success": True,
@@ -862,6 +948,7 @@ def ticketsByid(bus_id: str):
 
     except Exception as e:
         return {"success": False, "message": str(e)}
+
 
 
 # add push notification token
@@ -1800,6 +1887,10 @@ def get_conductor_payment_history(conductor_id: str, date: Optional[str] = None)
         elif " " in created_str:
             time_formatted = created_str.split(" ")[1][:5]
 
+        full_fare = round(amount_raw + cashback_raw, 2)
+        paid_amount = round(amount_raw, 2)
+        cashback_amount = round(cashback_raw, 2)
+
         tickets_data.append({
             "id": r["payment_row_id"],
             "ticket_id": r["ticket_id"],
@@ -1809,9 +1900,11 @@ def get_conductor_payment_history(conductor_id: str, date: Optional[str] = None)
             "origin": r.get("origin") or r.get("bus_origin") or "Start",
             "destination": r.get("destination") or r.get("bus_destination") or "End",
             "passenger_count": int(r.get("passenger_count") or 1),
-            "amount": amount_raw + cashback_raw,
-            "paidamount": amount_raw,
-            "cashback": cashback_raw,
+            "fare": full_fare,
+            "amount": full_fare,
+            "paidamount": paid_amount,
+            "total_paid": paid_amount,
+            "cashback": cashback_amount,
             "payment_mode": "PASS" if is_pass else "UPI",
             "razorpay_payment_id": r.get("razorpay_payment_id"),
             "phone_number": r.get("phone_number"),
@@ -1819,6 +1912,7 @@ def get_conductor_payment_history(conductor_id: str, date: Optional[str] = None)
             "time_formatted": time_formatted,
             "status": r.get("status", "PAID"),
         })
+
 
     return {
         "success": True,

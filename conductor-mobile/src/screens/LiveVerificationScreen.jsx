@@ -20,12 +20,16 @@ import QRCode from 'react-native-qrcode-svg';
 import Svg, { G, Path, Rect } from 'react-native-svg';
 import colors from '../theme/colors';
 
+const PRIMARY_API_BASE = 'https://api.shreemateshwaribus.com/api/v1';
 
 export default function LiveVerificationScreen({ route, navigation }) {
-  const busId = route?.params?.busId || 'BUS001';
-  const busNo = route?.params?.busNo || '';
-  const [showQr, setShowQr] = useState(false);
+  const [conductor, setConductor] = useState(route?.params?.conductor || null);
+  const [assignedBus, setAssignedBus] = useState(route?.params?.assignedBus || null);
 
+  const busId = route?.params?.busId || assignedBus?.bus_id || 'BUS001';
+  const busNo = route?.params?.busNo || assignedBus?.bus_number || assignedBus?.bus_no || '';
+
+  const [showQr, setShowQr] = useState(false);
   const [verifiedTickets, setVerifiedTickets] = useState([]);
   const [latestTicket, setLatestTicket] = useState(null);
   const [selectedTicket, setSelectedTicket] = useState(null);
@@ -42,7 +46,9 @@ export default function LiveVerificationScreen({ route, navigation }) {
       appState.current = nextAppState;
     };
     const sub = AppState.addEventListener('change', appStateListener);
-    const STORAGE_KEY = `@knownTicketIds_${busId}`;
+
+    let activeConductorId = conductor?.conductor_id || route?.params?.conductorId || null;
+    const STORAGE_KEY = `@knownTicketIds_${activeConductorId || busId}`;
 
     const loadKnownIds = async () => {
       try {
@@ -66,12 +72,31 @@ export default function LiveVerificationScreen({ route, navigation }) {
 
     const fetchUpdates = async () => {
       try {
+        let currentCondId = activeConductorId;
+        if (!currentCondId) {
+          try {
+            const sessionJson = await AsyncStorage.getItem('@conductor_session');
+            if (sessionJson) {
+              const session = JSON.parse(sessionJson);
+              currentCondId = session?.conductor_id;
+              setConductor(session);
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+
         let tickets = [];
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 6000);
 
+        // Fetch using conductor ID endpoint (or fallback to bus ID)
+        const fetchUrl = currentCondId
+          ? `${PRIMARY_API_BASE}/tickets/conductor/${currentCondId}`
+          : `${PRIMARY_API_BASE}/tickets/${busId}`;
+
         try {
-          const res = await fetch(`https://api.shreemateshwaribus.com/api/v1/tickets/${busId}`, {
+          const res = await fetch(fetchUrl, {
             signal: controller.signal,
           });
           clearTimeout(timeoutId);
@@ -114,7 +139,7 @@ export default function LiveVerificationScreen({ route, navigation }) {
       if (cleanup) cleanup();
       if (sub) sub.remove();
     };
-  }, [busId]);
+  }, [busId, conductor]);
 
   const processIncomingTickets = async (tickets, persistFn) => {
     let sum = 0;
@@ -122,7 +147,7 @@ export default function LiveVerificationScreen({ route, navigation }) {
 
     tickets.forEach((ticket) => {
       const amt = parseFloat(ticket.paidamount) || parseFloat(ticket.amount) || 0;
-      if (ticket.razorpay_payment_id !== 'monthly_pass') {
+      if (ticket.razorpay_payment_id !== 'monthly_pass' && ticket.payment_mode !== 'PASS') {
         sum += amt;
       }
 
@@ -133,7 +158,7 @@ export default function LiveVerificationScreen({ route, navigation }) {
     });
 
     // Always update list so it never stays stuck or empty
-    setVerifiedTickets([...tickets].reverse());
+    setVerifiedTickets([...tickets]);
     setTotalCollection(sum);
 
     if (persistFn) {
@@ -150,10 +175,13 @@ export default function LiveVerificationScreen({ route, navigation }) {
 
     if (appState.current !== 'active') {
       try {
+        const isPass = ticket.razorpay_payment_id === 'monthly_pass' || ticket.payment_mode === 'PASS';
+        const displayAmt = isPass ? 'Monthly Pass' : `₹${ticket.paidamount ?? ticket.amount}`;
+
         Notifications.scheduleNotificationAsync({
           content: {
             title: 'Payment received',
-            body: `₹${ticket.amount} - ${ticket.ticket_id}`,
+            body: `${displayAmt} - ${ticket.ticket_id} (Bus: ${ticket.bus_number || busNo})`,
             data: { ticket },
           },
           trigger: null,
@@ -168,6 +196,7 @@ export default function LiveVerificationScreen({ route, navigation }) {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
 
+      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity
@@ -177,8 +206,8 @@ export default function LiveVerificationScreen({ route, navigation }) {
                 navigation.goBack();
               } else {
                 navigation.navigate('ShiftSelect', {
-                  conductor: route?.params?.conductor,
-                  assignedBus: route?.params?.assignedBus,
+                  conductor,
+                  assignedBus,
                 });
               }
             }}
@@ -187,63 +216,115 @@ export default function LiveVerificationScreen({ route, navigation }) {
             <Text style={styles.exitShiftText}>‹</Text>
           </TouchableOpacity>
           <View>
-            <Text style={styles.busTitle}>{busNo || busId}</Text>
+            <Text style={styles.busTitle}>{busNo || assignedBus?.bus_number || busId}</Text>
             <View style={styles.statusRow}>
               <View style={[styles.statusDot, { backgroundColor: isOnline ? colors.success : colors.warning }]} />
-              <Text style={styles.statusText}>{isOnline ? 'LIVE SYNC' : 'OFFLINE MODE'}</Text>
+              <Text style={styles.statusText}>
+                {isOnline ? 'LIVE SYNC' : 'OFFLINE MODE'} • {conductor?.name || conductor?.conductor_id || 'Conductor'}
+              </Text>
             </View>
           </View>
         </View>
 
-
         <View style={styles.collectionBadge}>
-          <Text style={styles.collectionLabel}>TOTAL UPI</Text>
+          <Text style={styles.collectionLabel}>TODAY'S COLLECTION</Text>
           <Text style={styles.collectionValue}>₹{totalCollection}</Text>
         </View>
       </View>
 
-
+      {/* Main Feed Container */}
       <View style={styles.feedContainer}>
-        <Text style={styles.sectionHeader}>Verified Payments ({verifiedTickets.length})</Text>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionHeader}>Verified Payments ({verifiedTickets.length})</Text>
+          <Text style={styles.subHeader}>Auto-refreshing live</Text>
+        </View>
 
         <FlatList
           data={verifiedTickets}
-          keyExtractor={(item) => String(item.ticket_id)}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.ticketCard}
-              activeOpacity={0.8}
-              onPress={() => setSelectedTicket(item)}
-            >
-              <View style={styles.cardHeader}>
-                <Text style={styles.ticketId}>{item.ticket_id}</Text>
-                <View style={item.razorpay_payment_id == 'monthly_pass' ? styles.verifiedBadge : styles.oneTimeBadge}>
-                  <Text style={item.razorpay_payment_id == 'monthly_pass' ? styles.verifiedBadgeText : styles.oneTimeBadgeText}>
-                    {item.razorpay_payment_id == 'monthly_pass' ? "Monthly Pass" : "One Time"}
+          keyExtractor={(item) => String(item.ticket_id || item.payment_id || Math.random())}
+          renderItem={({ item }) => {
+            const isPass = item.razorpay_payment_id === 'monthly_pass' || item.payment_mode === 'PASS';
+            const fareAmount = isPass ? 0 : (item.fare || item.amount || 0);
+            const cashbackAmount = isPass ? 0 : (item.cashback || 0);
+            const paidAmount = isPass ? 0 : (item.paidamount ?? item.total_paid ?? item.amount ?? 0);
+
+            return (
+              <TouchableOpacity
+                style={styles.ticketCard}
+                activeOpacity={0.85}
+                onPress={() => setSelectedTicket(item)}
+              >
+                {/* Header: Ticket ID, Bus Number & Mode Badge */}
+                <View style={styles.cardHeader}>
+                  <View style={styles.ticketIdRow}>
+                    <Text style={styles.ticketId}>#{item.ticket_id}</Text>
+                    <View style={styles.busBadge}>
+                      <Text style={styles.busBadgeText}>🚍 {item.bus_number || item.bus_no || busNo || item.bus_id}</Text>
+                    </View>
+                  </View>
+
+                  <View style={isPass ? styles.passBadge : styles.oneTimeBadge}>
+                    <Text style={isPass ? styles.passBadgeText : styles.oneTimeBadgeText}>
+                      {isPass ? 'Monthly Pass' : 'UPI Payment'}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Route & Passengers */}
+                <View style={styles.cardBody}>
+                  <Text style={styles.routeText}>{item.origin} ➔ {item.destination}</Text>
+                  <Text style={styles.metaText}>
+                    👥 {item.passenger_count || 1} Passenger(s) • ⏰ {item.created_at ? (item.created_at.includes('T') ? item.created_at.split('T')[1].substring(0, 5) : item.created_at.split(' ')[1]?.substring(0, 5) || 'Today') : 'Just Now'}
                   </Text>
                 </View>
-              </View>
 
-              <View style={styles.cardBody}>
-                <Text style={styles.routeText}>{item.origin} ➔ {item.destination}</Text>
-                <Text style={styles.metaText}>{item.passenger_count} Passenger(s)</Text>
-              </View>
+                {/* 3-Column Breakdown: FARE | CASHBACK | TOTAL PAID */}
+                <View style={styles.breakdownBox}>
+                  <View style={styles.breakdownCol}>
+                    <Text style={styles.breakdownLabel}>FARE</Text>
+                    <Text style={styles.breakdownValue}>{isPass ? '₹0' : `₹${fareAmount}`}</Text>
+                  </View>
 
-              <View style={styles.cardFooter}>
-                <Text style={styles.amountText}> {item.razorpay_payment_id == 'monthly_pass' ? "" : "₹" + item.amount}</Text>
-                <Text style={styles.timeText}>{item.created_at ? item.created_at.split('T')[1].substring(0, 5) : 'Just Now'}</Text>
-              </View>
-              <Text style={styles.viewDetailsText}>Tap to view full details  ›</Text>
-            </TouchableOpacity>
-          )}
+                  <View style={styles.breakdownDivider} />
+
+                  <View style={styles.breakdownCol}>
+                    <Text style={styles.breakdownLabel}>CASHBACK</Text>
+                    <Text style={[styles.breakdownValue, cashbackAmount > 0 && styles.cashbackGreen]}>
+                      {cashbackAmount > 0 ? `-₹${cashbackAmount}` : '₹0'}
+                    </Text>
+                  </View>
+
+                  <View style={styles.breakdownDivider} />
+
+                  <View style={styles.breakdownCol}>
+                    <Text style={styles.breakdownLabel}>TOTAL PAID</Text>
+                    <Text style={[styles.breakdownValue, isPass ? styles.paidPassText : styles.paidUpiText]}>
+                      {isPass ? 'PASS RIDE' : `₹${paidAmount}`}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Card Footer */}
+                <View style={styles.cardFooter}>
+                  <Text style={styles.viewDetailsText}>Tap to view full receipt  ›</Text>
+                  <View style={styles.verifiedCheckBadge}>
+                    <Text style={styles.verifiedCheckText}>✓ Verified</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          }}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>Waiting for passenger scans...</Text>
+              <Text style={styles.emptyEmoji}>🎫</Text>
+              <Text style={styles.emptyTitle}>Waiting for passenger scans...</Text>
+              <Text style={styles.emptySubtitle}>Live payments verified by conductor will appear here instantly.</Text>
             </View>
           }
         />
       </View>
 
+      {/* Alert Overlay on New Ticket Scan */}
       {showAlertOverlay && latestTicket && (
         <TouchableOpacity
           activeOpacity={0.9}
@@ -256,12 +337,15 @@ export default function LiveVerificationScreen({ route, navigation }) {
             </View>
 
             <Text style={styles.overlayTitle}>PAYMENT RECEIVED</Text>
-            <Text style={latestTicket.razorpay_payment_id == 'monthly_pass' ? styles.overlayAmountPass : styles.overlayAmount}>
-              {latestTicket.razorpay_payment_id == 'monthly_pass' ? 'Monthly Pass' : `₹${latestTicket.amount}`}
+            <Text style={latestTicket.razorpay_payment_id === 'monthly_pass' || latestTicket.payment_mode === 'PASS' ? styles.overlayAmountPass : styles.overlayAmount}>
+              {latestTicket.razorpay_payment_id === 'monthly_pass' || latestTicket.payment_mode === 'PASS' ? 'Monthly Pass' : `₹${latestTicket.paidamount ?? latestTicket.amount}`}
             </Text>
             <View style={styles.overlayDetailsBox}>
               <Text style={styles.overlayDetailText}>
-                <Text style={styles.bold}>Tickets:</Text> {latestTicket.ticket_id}
+                <Text style={styles.bold}>Ticket ID:</Text> #{latestTicket.ticket_id}
+              </Text>
+              <Text style={styles.overlayDetailText}>
+                <Text style={styles.bold}>Bus:</Text> {latestTicket.bus_number || latestTicket.bus_no || busNo}
               </Text>
               <Text style={styles.overlayDetailText}>
                 <Text style={styles.bold}>From:</Text> {latestTicket.origin}
@@ -279,6 +363,7 @@ export default function LiveVerificationScreen({ route, navigation }) {
         </TouchableOpacity>
       )}
 
+      {/* Modal: Ticket Details Receipt */}
       <Modal
         visible={Boolean(selectedTicket)}
         transparent
@@ -292,7 +377,7 @@ export default function LiveVerificationScreen({ route, navigation }) {
                 <View style={styles.sheetHandle} />
                 <View style={styles.detailsHeader}>
                   <View>
-                    <Text style={styles.detailsEyebrow}>VERIFIED PAYMENT</Text>
+                    <Text style={styles.detailsEyebrow}>VERIFIED RECEIPT</Text>
                     <Text style={styles.detailsTitle}>Ticket #{selectedTicket.ticket_id}</Text>
                   </View>
                   <TouchableOpacity
@@ -305,52 +390,61 @@ export default function LiveVerificationScreen({ route, navigation }) {
                 </View>
 
                 <View style={styles.detailsRouteBox}>
-                  <Text style={styles.detailsRouteLabel}>JOURNEY</Text>
-                  <Text style={styles.detailsRouteText}>{selectedTicket.origin}  ›  {selectedTicket.destination}</Text>
-                </View>
-
-                <View style={styles.detailsAmountRow}>
-                  <View>
-                    <Text style={styles.detailsLabel}>PAYMENT TYPE</Text>
-                    <Text style={styles.detailsValue}>
-                      {selectedTicket.razorpay_payment_id === 'monthly_pass' ? 'Monthly Pass' : 'One Time'}
-                    </Text>
-                  </View>
-                  <View style={styles.detailsAmountBlock}>
-                    <Text style={styles.detailsLabel}>TOTAL PAID</Text>
-                    <Text style={styles.detailsAmount}>
-                      ₹{selectedTicket.paidamount ?? selectedTicket.amount ?? 0}
-                    </Text>
-                  </View>
+                  <Text style={styles.detailsRouteLabel}>JOURNEY ROUTE</Text>
+                  <Text style={styles.detailsRouteText}>{selectedTicket.origin}  ➔  {selectedTicket.destination}</Text>
                 </View>
 
                 <View style={styles.detailsGrid}>
                   <View style={styles.detailCell}>
+                    <Text style={styles.detailsLabel}>BUS NUMBER</Text>
+                    <Text style={styles.detailsValue}>{selectedTicket.bus_number || selectedTicket.bus_no || busNo || selectedTicket.bus_id}</Text>
+                  </View>
+                  <View style={styles.detailCell}>
                     <Text style={styles.detailsLabel}>PASSENGERS</Text>
-                    <Text style={styles.detailsValue}>{selectedTicket.passenger_count ?? 0}</Text>
+                    <Text style={styles.detailsValue}>{selectedTicket.passenger_count ?? 1}</Text>
                   </View>
                   <View style={styles.detailCell}>
                     <Text style={styles.detailsLabel}>TIME</Text>
                     <Text style={styles.detailsValue}>
-                      {selectedTicket.created_at ? new Date(selectedTicket.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just Now'}
+                      {selectedTicket.created_at ? (selectedTicket.created_at.includes('T') ? selectedTicket.created_at.split('T')[1].substring(0, 5) : selectedTicket.created_at.split(' ')[1]?.substring(0, 5) || 'Today') : 'Just Now'}
                     </Text>
                   </View>
-                  {selectedTicket.razorpay_payment_id !== 'monthly_pass' && (<>
-                    <View style={styles.detailCell}>
-                      <Text style={styles.detailsLabel}>FARE</Text>
-                      <Text style={styles.detailsValue}>₹{selectedTicket.amount ?? 0}</Text>
-                    </View>
-                    <View style={styles.detailCell}>
-                      <Text style={styles.detailsLabel}>DISCOUNT</Text>
-                      <Text style={styles.cashbackValue}>₹{selectedTicket.cashback ?? 0}</Text>
-                    </View>
-                  </>)}
+                  <View style={styles.detailCell}>
+                    <Text style={styles.detailsLabel}>PAYMENT MODE</Text>
+                    <Text style={styles.detailsValue}>
+                      {selectedTicket.razorpay_payment_id === 'monthly_pass' || selectedTicket.payment_mode === 'PASS' ? 'Monthly Pass' : 'Razorpay UPI'}
+                    </Text>
+                  </View>
                 </View>
 
-                {selectedTicket.razorpay_payment_id !== 'monthly_pass' && (
+                {/* Amount Breakup */}
+                <View style={styles.receiptBreakupCard}>
+                  <View style={styles.receiptBreakupRow}>
+                    <Text style={styles.receiptBreakupLabel}>Standard Fare</Text>
+                    <Text style={styles.receiptBreakupVal}>₹{selectedTicket.fare || selectedTicket.amount || 0}</Text>
+                  </View>
+
+                  <View style={styles.receiptBreakupRow}>
+                    <Text style={styles.receiptBreakupLabel}>Cashback Discount</Text>
+                    <Text style={[styles.receiptBreakupVal, { color: colors.primaryText, fontWeight: '800' }]}>
+                      {selectedTicket.cashback > 0 ? `- ₹${selectedTicket.cashback}` : '₹0.00'}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.receiptBreakupRow, styles.receiptBreakupTotalRow]}>
+                    <Text style={styles.receiptTotalLabel}>TOTAL PAID AMOUNT</Text>
+                    <Text style={styles.receiptTotalVal}>
+                      {selectedTicket.razorpay_payment_id === 'monthly_pass' || selectedTicket.payment_mode === 'PASS'
+                        ? 'FREE PASS RIDE'
+                        : `₹${selectedTicket.paidamount ?? selectedTicket.total_paid ?? selectedTicket.amount ?? 0}`}
+                    </Text>
+                  </View>
+                </View>
+
+                {selectedTicket.razorpay_payment_id && selectedTicket.razorpay_payment_id !== 'monthly_pass' && (
                   <View style={styles.transactionBox}>
                     <Text style={styles.detailsLabel}>TRANSACTION ID</Text>
-                    <Text style={styles.transactionText}>{selectedTicket.razorpay_payment_id || 'Bank Verified'}</Text>
+                    <Text style={styles.transactionText}>{selectedTicket.razorpay_payment_id}</Text>
                   </View>
                 )}
               </>
@@ -359,6 +453,20 @@ export default function LiveVerificationScreen({ route, navigation }) {
         </Pressable>
       </Modal>
 
+      {/* Floating QR Button */}
+      <TouchableOpacity
+        style={styles.qrFloatingButton}
+        onPress={() => setShowQr(true)}
+        activeOpacity={0.85}
+      >
+        <View style={styles.qrIconInner}>
+          <Svg width={28} height={28} viewBox="0 0 24 24" fill="#ffffff">
+            <Path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm8-2h6v6h-6V3zm2 2v2h2V5h-2zM3 13h6v6H3v-6zm2 2v2h2v-2H5zm13-2h3v2h-3v-2zm-5 0h2v2h-2v-2zm2 2h2v2h-2v-2zm-2 2h2v2h-2v-2zm2 2h2v2h-2v-2zm2-2h2v2h-2v-2zm0 2h3v2h-3v-2z" />
+          </Svg>
+        </View>
+      </TouchableOpacity>
+
+      {/* QR Code Modal */}
       <Modal
         visible={showQr}
         transparent
@@ -367,11 +475,12 @@ export default function LiveVerificationScreen({ route, navigation }) {
       >
         <Pressable style={styles.qrModalBackdrop} onPress={() => setShowQr(false)}>
           <Pressable style={styles.qrModalCard} onPress={() => { }}>
-            <Text style={styles.qrTitle}>Bus QR</Text>
+            <Text style={styles.qrTitle}>Bus QR Code</Text>
+            <Text style={styles.qrSubtitle}>Bus: {busNo || busId}</Text>
             <View style={styles.qrBox}>
               <QRCode
                 value={`https://bus.shreemateshwaribus.com/bus/${busId}`}
-                size={250}
+                size={240}
               />
             </View>
 
@@ -381,20 +490,6 @@ export default function LiveVerificationScreen({ route, navigation }) {
           </Pressable>
         </Pressable>
       </Modal>
-
-      <TouchableOpacity style={styles.fab} onPress={() => setShowQr(true)} activeOpacity={0.85}>
-        <View style={styles.fabIconBackground}>
-          <Svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" fill={colors.textOnPrimary} class="bi bi-qr-code" viewBox="0 0 16 16">
-            <Path d="M2 2h2v2H2z" />
-            <Path d="M6 0v6H0V0zM5 1H1v4h4zM4 12H2v2h2z" />
-            <Path d="M6 10v6H0v-6zm-5 1v4h4v-4zm11-9h2v2h-2z" />
-            <Path d="M10 0v6h6V0zm5 1v4h-4V1zM8 1V0h1v2H8v2H7V1zm0 5V4h1v2zM6 8V7h1V6h1v2h1V7h5v1h-4v1H7V8zm0 0v1H2V8H1v1H0V7h3v1zm10 1h-1V7h1zm-1 0h-1v2h2v-1h-1zm-4 0h2v1h-1v1h-1zm2 3v-1h-1v1h-1v1H9v1h3v-2zm0 0h3v1h-2v1h-1zm-4-1v1h1v-2H7v1z" />
-            <Path d="M7 12h1v3h4v1H7zm9 2v2h-3v-1h2v-1z" />
-          </Svg>
-
-        </View>
-      </TouchableOpacity>
-
     </SafeAreaView>
   );
 }
@@ -423,24 +518,22 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 8,
     marginRight: 10,
-
   },
   exitShiftText: {
     color: '#ffffff',
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '700',
   },
   busTitle: {
     color: colors.textOnPrimary,
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '900',
   },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 3,
   },
-
   statusDot: {
     width: 8,
     height: 8,
@@ -448,15 +541,9 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   statusText: {
-    color: colors.textSubtle,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  overlayAmountPass: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: colors.warningStrong,
-    marginVertical: 6,
+    color: colors.primaryMuted,
+    fontSize: 11,
+    fontWeight: '700',
   },
   collectionBadge: {
     backgroundColor: colors.primarySurface,
@@ -467,8 +554,9 @@ const styles = StyleSheet.create({
   },
   collectionLabel: {
     color: colors.primaryMuted,
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.6,
   },
   collectionValue: {
     color: colors.successBright,
@@ -479,353 +567,461 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   sectionHeader: {
     fontSize: 14,
-    fontWeight: '700',
-    color: colors.textMuted,
-    marginBottom: 12,
+    fontWeight: '800',
+    color: colors.textStrong,
     textTransform: 'uppercase',
+  },
+  subHeader: {
+    fontSize: 11,
+    color: colors.textMuted,
+    fontWeight: '600',
   },
   ticketCard: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: colors.border,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
     elevation: 2,
-  },
-  viewDetailsText: {
-    color: colors.primaryText,
-    fontSize: 11,
-    fontWeight: '700',
-    marginTop: 12,
-    textAlign: 'right',
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
+  },
+  ticketIdRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   ticketId: {
-    fontFamily: 'monospace',
-    fontWeight: '700',
-    color: colors.textBody,
+    fontWeight: '900',
+    color: colors.textStrong,
+    fontSize: 14,
   },
-  verifiedBadge: {
+  busBadge: {
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  busBadgeText: {
+    color: colors.primaryText,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  oneTimeBadge: {
     backgroundColor: colors.successSoft,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: 8,
   },
-  oneTimeBadge: {
+  oneTimeBadgeText: {
+    color: colors.successText,
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  passBadge: {
     backgroundColor: colors.warningSoft,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: 8,
   },
-  verifiedBadgeText: {
-    color: colors.successText,
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  oneTimeBadgeText: {
+  passBadgeText: {
     color: colors.warningText,
-    fontSize: 10,
-    fontWeight: '800',
+    fontSize: 9,
+    fontWeight: '900',
   },
-
   cardBody: {
-    marginBottom: 12,
+    marginBottom: 10,
   },
   routeText: {
-    fontSize: 16,
+    color: colors.textBody,
+    fontSize: 13,
     fontWeight: '700',
-    color: colors.text,
+    marginBottom: 2,
   },
   metaText: {
-    fontSize: 12,
     color: colors.textMuted,
-    marginTop: 2,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  breakdownBox: {
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    marginBottom: 8,
+  },
+  breakdownCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  breakdownDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: colors.border,
+  },
+  breakdownLabel: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: colors.textSubtle,
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  breakdownValue: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.textStrong,
+  },
+  cashbackGreen: {
+    color: colors.primaryText,
+    fontWeight: '900',
+  },
+  paidUpiText: {
+    color: colors.successStrong,
+    fontWeight: '900',
+    fontSize: 13,
+  },
+  paidPassText: {
+    color: colors.warningStrong,
+    fontWeight: '900',
+    fontSize: 11,
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSubtle,
-    paddingTop: 8,
+    paddingTop: 6,
   },
-  amountText: {
-    fontSize: 18,
-    fontWeight: '900',
+  viewDetailsText: {
+    color: colors.primaryText,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  verifiedCheckBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  verifiedCheckText: {
     color: colors.successStrong,
-  },
-  timeText: {
-    fontSize: 12,
-    color: colors.textSubtle,
+    fontSize: 10,
+    fontWeight: '800',
   },
   emptyState: {
+    padding: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  emptyText: {
-    color: colors.textSubtle,
-    fontSize: 14,
-  },
-  detailsBackdrop: {
-    flex: 1,
-    backgroundColor: colors.overlayDark,
-    justifyContent: 'flex-end',
-  },
-  detailsSheet: {
     backgroundColor: colors.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 22,
-    paddingTop: 10,
-    paddingBottom: 30,
-    elevation: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginTop: 20,
   },
-  sheetHandle: {
-    alignSelf: 'center',
-    width: 42,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.divider,
-    marginBottom: 18,
+  emptyEmoji: {
+    fontSize: 36,
+    marginBottom: 8,
   },
-  detailsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 18,
-  },
-  detailsEyebrow: {
-    color: colors.success,
-    fontSize: 10,
+  emptyTitle: {
+    color: colors.textStrong,
+    fontSize: 15,
     fontWeight: '800',
-    letterSpacing: 1.2,
     marginBottom: 4,
   },
-  detailsTitle: {
-    color: colors.text,
-    fontSize: 24,
-    fontWeight: '900',
-  },
-  detailsCloseButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: colors.surfaceMuted,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  detailsCloseText: {
-    color: colors.textSecondary,
-    fontSize: 25,
-    fontWeight: '400',
-    lineHeight: 28,
-  },
-  detailsRouteBox: {
-    backgroundColor: colors.primarySoft,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 18,
-  },
-  detailsRouteLabel: {
-    color: colors.primaryText,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1,
-    marginBottom: 6,
-  },
-  detailsRouteText: {
-    color: colors.textStrong,
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  detailsAmountRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingBottom: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  detailsAmountBlock: {
-    alignItems: 'flex-end',
-  },
-  detailsLabel: {
-    color: colors.textSubtle,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    marginBottom: 5,
-  },
-  detailsValue: {
-    color: colors.textBody,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  detailsAmount: {
-    color: colors.successStrong,
-    fontSize: 24,
-    fontWeight: '900',
-  },
-  detailsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingVertical: 8,
-  },
-  detailCell: {
-    width: '50%',
-    paddingVertical: 10,
-  },
-  cashbackValue: {
-    color: colors.warningStrong,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  transactionBox: {
-    backgroundColor: colors.background,
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 4,
-
-  },
-  transactionText: {
-    color: colors.textSecondary,
-    fontFamily: 'monospace',
+  emptySubtitle: {
+    color: colors.textMuted,
     fontSize: 12,
-    fontWeight: '700',
+    textAlign: 'center',
   },
   overlayContainer: {
     position: 'absolute',
     top: 0,
+    bottom: 0,
     left: 0,
     right: 0,
-    bottom: 0,
-    backgroundColor: colors.overlaySuccess,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
     zIndex: 999,
   },
   overlayCard: {
+    width: '85%',
     backgroundColor: colors.surface,
     borderRadius: 24,
     padding: 24,
-    width: '100%',
     alignItems: 'center',
-    elevation: 10,
   },
   overlayIconContainer: {
     width: 64,
     height: 64,
     borderRadius: 32,
     backgroundColor: colors.success,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 12,
   },
   overlayCheckmark: {
-    color: colors.textOnPrimary,
-    fontSize: 36,
+    color: '#ffffff',
+    fontSize: 32,
     fontWeight: '900',
   },
   overlayTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: colors.successStrong,
+    color: colors.textMuted,
     letterSpacing: 1,
   },
   overlayAmount: {
-    fontSize: 42,
+    fontSize: 32,
     fontWeight: '900',
-    color: colors.text,
-    marginVertical: 4,
+    color: colors.successStrong,
+    marginVertical: 6,
+  },
+  overlayAmountPass: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: colors.warningStrong,
+    marginVertical: 6,
   },
   overlayDetailsBox: {
-    backgroundColor: colors.background,
-    borderRadius: 16,
-    padding: 16,
     width: '100%',
-    marginVertical: 16,
+    backgroundColor: colors.background,
+    borderRadius: 14,
+    padding: 12,
+    marginVertical: 12,
   },
   overlayDetailText: {
-    fontSize: 14,
     color: colors.textBody,
-    marginBottom: 4,
+    fontSize: 12,
+    marginVertical: 2,
   },
   bold: {
     fontWeight: '700',
+    color: colors.textStrong,
   },
   overlayDismissHint: {
-    fontSize: 12,
     color: colors.textSubtle,
-    marginTop: 8,
+    fontSize: 11,
+    marginTop: 6,
+  },
+  detailsBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  detailsSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: colors.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  detailsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  detailsEyebrow: {
+    color: colors.textSubtle,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  detailsTitle: {
+    color: colors.textStrong,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  detailsCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailsCloseText: {
+    fontSize: 18,
+    color: colors.textMuted,
+    fontWeight: '700',
+  },
+  detailsRouteBox: {
+    backgroundColor: colors.background,
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 14,
+  },
+  detailsRouteLabel: {
+    color: colors.textSubtle,
+    fontSize: 9,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  detailsRouteText: {
+    color: colors.textStrong,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  detailsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 14,
+  },
+  detailCell: {
+    width: '50%',
+    paddingVertical: 6,
+  },
+  detailsLabel: {
+    color: colors.textSubtle,
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  detailsValue: {
+    color: colors.textStrong,
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  receiptBreakupCard: {
+    backgroundColor: colors.background,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 14,
+  },
+  receiptBreakupRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  receiptBreakupLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  receiptBreakupVal: {
+    color: colors.textStrong,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  receiptBreakupTotalRow: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    marginTop: 6,
+    paddingTop: 8,
+  },
+  receiptTotalLabel: {
+    color: colors.successStrong,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  receiptTotalVal: {
+    color: colors.successStrong,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  transactionBox: {
+    backgroundColor: colors.background,
+    padding: 10,
+    borderRadius: 10,
+  },
+  transactionText: {
+    color: colors.textStrong,
+    fontFamily: 'monospace',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  qrFloatingButton: {
+    position: 'absolute',
+    bottom: 24,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  qrIconInner: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   qrModalBackdrop: {
     flex: 1,
-    backgroundColor: colors.overlayBlack,
-    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.7)',
     alignItems: 'center',
-    padding: 15,
+    justifyContent: 'center',
   },
   qrModalCard: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 15,
-    width: '100%',
-    maxWidth: 360,
+    borderRadius: 24,
+    padding: 24,
     alignItems: 'center',
   },
   qrTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    marginBottom: 12,
-  },
-  qrBox: {
-    backgroundColor: colors.surface,
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 12,
+    color: colors.textStrong,
+    fontSize: 18,
+    fontWeight: '900',
   },
   qrSubtitle: {
-    fontSize: 12,
     color: colors.textMuted,
-    marginBottom: 12,
-    textAlign: 'center',
+    fontSize: 12,
+    marginTop: 2,
+    marginBottom: 16,
+  },
+  qrBox: {
+    backgroundColor: '#ffffff',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 16,
   },
   qrCloseButton: {
     backgroundColor: colors.primary,
-    paddingHorizontal: 18,
+    paddingHorizontal: 24,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 12,
+    width: '100%',
+    alignItems: 'center',
   },
   qrCloseText: {
-    color: colors.textOnPrimary,
-    fontWeight: '700',
-  },
-  fab: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 26,
-    alignItems: 'center',
-    zIndex: 50,
-  },
-  fabIconBackground: {
-    backgroundColor: colors.primary,
-    width: 64,
-    height: 64,
-    padding: 10,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 6,
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 13,
   },
 });
