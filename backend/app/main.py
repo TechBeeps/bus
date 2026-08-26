@@ -34,8 +34,8 @@ app = FastAPI(
     description="Backend service for QR-based ticketing, payment verification, and fleet management.",
 )
 
-RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "rzp_live_TTxKwSmAnyAfg3")
-RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "A82KK0296MBhrLKxh26QY8Ig")
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "rzp_test_TRERJ9RO8gmVih")
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "9w31CkmZ3dqkE1ClZDT9z1Mm")
 
 razorpay_client = razorpay.Client(
     auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)
