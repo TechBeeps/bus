@@ -11,19 +11,68 @@ import {
   StatusBar,
   RefreshControl,
   Platform,
+  Modal,
+  FlatList,
+  Pressable,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import QRCode from 'react-native-qrcode-svg';
+import Svg, { Path } from 'react-native-svg';
 import colors from '../theme/colors';
 
-const PRIMARY_API_BASE = 'http://192.168.1.8:8000/api/v1';
+const PRIMARY_API_BASE = 'https://api.shreemateshwaribus.com/api/v1';
 const FALLBACK_API_BASE = 'https://api.shreemateshwaribus.com/api/v1';
 
 export default function ShiftSelectScreen({ route, navigation }) {
   const [conductor, setConductor] = useState(route?.params?.conductor || null);
   const [assignedBus, setAssignedBus] = useState(route?.params?.assignedBus || null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!route?.params?.conductor && !route?.params?.assignedBus);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+
+  // Modals for Home Options
+  const [showQr, setShowQr] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showBusDetailsModal, setShowBusDetailsModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+
+  // Payment History State
+  const [paymentHistory, setPaymentHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [totalCollection, setTotalCollection] = useState(0);
+
+  const fetchPaymentHistory = async (busId) => {
+    if (!busId) return;
+    setHistoryLoading(true);
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      let res;
+      try {
+        res = await fetch(`${PRIMARY_API_BASE}/tickets/${busId}`, { signal: controller.signal });
+        clearTimeout(timeoutId);
+      } catch (err) {
+        clearTimeout(timeoutId);
+        res = await fetch(`${FALLBACK_API_BASE}/tickets/${busId}`);
+      }
+
+      if (res && res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data.data) ? data.data : [];
+        setPaymentHistory(list);
+
+        const total = list.reduce((acc, curr) => {
+          if (curr.razorpay_payment_id === 'monthly_pass') return acc;
+          return acc + (parseFloat(curr.paidamount) || parseFloat(curr.amount) || 0);
+        }, 0);
+        setTotalCollection(total);
+      }
+    } catch (e) {
+      // ignore history load error
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   const fetchAssignedBus = useCallback(async (cond) => {
     if (!cond || !cond.conductor_id) {
@@ -32,11 +81,17 @@ export default function ShiftSelectScreen({ route, navigation }) {
     }
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+
       let res;
       try {
-        res = await fetch(`${PRIMARY_API_BASE}/conductor/my-bus/${cond.conductor_id}`);
+        res = await fetch(`${PRIMARY_API_BASE}/conductor/my-bus/${cond.conductor_id}`, {
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
       } catch (err) {
-        // Fallback if local IP is not reachable
+        clearTimeout(timeoutId);
         try {
           res = await fetch(`${FALLBACK_API_BASE}/conductor/my-bus/${cond.conductor_id}`);
         } catch (e2) {
@@ -53,15 +108,14 @@ export default function ShiftSelectScreen({ route, navigation }) {
         setAssignedBus(data.assigned_bus);
         if (data.assigned_bus) {
           await AsyncStorage.setItem('@conductor_assigned_bus', JSON.stringify(data.assigned_bus));
+          fetchPaymentHistory(data.assigned_bus.bus_id);
         } else {
           await AsyncStorage.removeItem('@conductor_assigned_bus');
         }
         setError(null);
-      } else {
-        setError('Failed to fetch assigned bus details');
       }
     } catch (e) {
-      setError('Network error while checking bus assignment');
+      // do not block screen with error if cached data exists
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -69,49 +123,72 @@ export default function ShiftSelectScreen({ route, navigation }) {
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
+
     const init = async () => {
       try {
-        let currentConductor = conductor;
+        let currentConductor = route?.params?.conductor || conductor;
         if (!currentConductor) {
           const sessionJson = await AsyncStorage.getItem('@conductor_session');
           if (sessionJson) {
             currentConductor = JSON.parse(sessionJson);
-            setConductor(currentConductor);
+            if (isMounted) setConductor(currentConductor);
           } else {
-            // Not logged in -> redirect to Login
             navigation.replace('Login');
             return;
           }
         }
 
-        const savedBus = await AsyncStorage.getItem('@conductor_assigned_bus');
-        if (savedBus && !assignedBus) {
-          setAssignedBus(JSON.parse(savedBus));
+        const savedBus = route?.params?.assignedBus || assignedBus;
+        if (!savedBus) {
+          const busJson = await AsyncStorage.getItem('@conductor_assigned_bus');
+          if (busJson && isMounted) {
+            const parsed = JSON.parse(busJson);
+            setAssignedBus(parsed);
+            fetchPaymentHistory(parsed.bus_id);
+            setLoading(false);
+          }
+        } else if (savedBus && isMounted) {
+          fetchPaymentHistory(savedBus.bus_id);
+          setLoading(false);
         }
 
-        await fetchAssignedBus(currentConductor);
+        if (currentConductor) {
+          await fetchAssignedBus(currentConductor);
+        }
       } catch (e) {
-        setLoading(false);
+        if (isMounted) setLoading(false);
+      } finally {
+        if (isMounted) setLoading(false);
       }
     };
 
     init();
-  }, [conductor, fetchAssignedBus, navigation, assignedBus]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, []); // Run on mount only
+
 
   const onRefresh = async () => {
     setRefreshing(true);
     if (conductor) {
       await fetchAssignedBus(conductor);
+      if (assignedBus?.bus_id) {
+        await fetchPaymentHistory(assignedBus.bus_id);
+      }
     } else {
       setRefreshing(false);
     }
   };
 
+  // Option 1: View Payment (Open Live Verification)
   const handleOpenLiveVerification = () => {
     if (!assignedBus) {
       Alert.alert(
         'No Bus Assigned',
-        'You do not have a bus assigned to your profile. Please contact admin to assign a bus before starting verification.'
+        'You do not have a bus assigned to your profile. Please contact admin to assign a bus before viewing payments.'
       );
       return;
     }
@@ -127,6 +204,34 @@ export default function ShiftSelectScreen({ route, navigation }) {
     });
   };
 
+  // Option 2: Open Show QR Code Modal
+  const handleOpenQrCode = () => {
+    if (!assignedBus) {
+      Alert.alert('No Bus Assigned', 'Please contact admin to assign a bus before showing QR code.');
+      return;
+    }
+    setShowQr(true);
+  };
+
+  // Option 3: Open Payment History Screen
+  const handleOpenPaymentHistory = () => {
+    navigation.navigate('PaymentHistory', {
+      conductor,
+      assignedBus,
+    });
+  };
+
+
+  // Option 4: Open Bus Details Modal
+  const handleOpenBusDetails = () => {
+    setShowBusDetailsModal(true);
+  };
+
+  // Option 5: Open Profile Modal
+  const handleOpenProfile = () => {
+    setShowProfileModal(true);
+  };
+
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to log out of the conductor app?', [
       { text: 'Cancel', style: 'cancel' },
@@ -134,6 +239,7 @@ export default function ShiftSelectScreen({ route, navigation }) {
         text: 'Logout',
         style: 'destructive',
         onPress: async () => {
+          setShowProfileModal(false);
           await AsyncStorage.removeItem('@conductor_session');
           await AsyncStorage.removeItem('@conductor_assigned_bus');
           navigation.replace('Login');
@@ -149,13 +255,20 @@ export default function ShiftSelectScreen({ route, navigation }) {
     year: 'numeric',
   });
 
+  const busId = assignedBus?.bus_id || 'BUS001';
+  const busQrUrl = `https://bus.shreemateshwaribus.com/bus/${busId}`;
+
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
 
-      {/* Top Header with Conductor Profile & Logout */}
+      {/* Top Header with Conductor Profile & Quick Logout */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
+        <TouchableOpacity
+          style={styles.headerLeft}
+          onPress={handleOpenProfile}
+          activeOpacity={0.8}
+        >
           <View style={styles.avatarBadge}>
             <Text style={styles.avatarText}>
               {conductor?.name ? conductor.name.charAt(0).toUpperCase() : 'C'}
@@ -172,7 +285,7 @@ export default function ShiftSelectScreen({ route, navigation }) {
               </Text>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.logoutButton}
@@ -194,11 +307,11 @@ export default function ShiftSelectScreen({ route, navigation }) {
           />
         }
       >
-        {/* Welcome Greeting & Date Banner */}
+        {/* Welcome Greeting & Active Bus Chip */}
         <View style={styles.greetingCard}>
           <View style={styles.greetingHeader}>
-            <View>
-              <Text style={styles.greetingEyebrow}>CONDUCTOR DASHBOARD</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.greetingEyebrow}>CONDUCTOR HOME</Text>
               <Text style={styles.greetingTitle}>
                 Namaste, {conductor?.name?.split(' ')[0] || 'Conductor'} 👋
               </Text>
@@ -207,17 +320,30 @@ export default function ShiftSelectScreen({ route, navigation }) {
               <Text style={styles.dateText}>{todayStr}</Text>
             </View>
           </View>
-          <Text style={styles.greetingSubtext}>
-            Manage your daily route shift and monitor passenger verified payments in real time.
-          </Text>
+
+          {/* Assigned Bus Tag */}
+          {assignedBus ? (
+            <View style={styles.busPill}>
+              <View style={styles.busPillDot} />
+              <Text style={styles.busPillText} numberOfLines={1}>
+                Assigned Bus: <Text style={styles.boldText}>{assignedBus.bus_no || assignedBus.bus_number || assignedBus.bus_id}</Text> ({assignedBus.origin || assignedBus.origin_city} ➔ {assignedBus.destination || assignedBus.destination_city})
+              </Text>
+            </View>
+          ) : (
+            <View style={[styles.busPill, { backgroundColor: '#fee2e2', borderColor: '#fca5a5' }]}>
+              <Text style={[styles.busPillText, { color: '#b91c1c' }]}>
+                ⚠️ No Bus Assigned to your profile
+              </Text>
+            </View>
+          )}
         </View>
 
-        {loading ? (
+        {loading && !assignedBus && !conductor ? (
           <View style={styles.stateBox}>
             <ActivityIndicator size="large" color={colors.primaryText} />
-            <Text style={styles.stateText}>Loading your shift & assigned bus...</Text>
+            <Text style={styles.stateText}>Loading your dashboard...</Text>
           </View>
-        ) : error ? (
+        ) : error && !assignedBus && !conductor ? (
           <View style={styles.errorBox}>
             <Text style={styles.errorIcon}>⚠️</Text>
             <Text style={styles.errorTitle}>Connection Issue</Text>
@@ -226,175 +352,458 @@ export default function ShiftSelectScreen({ route, navigation }) {
               <Text style={styles.retryButtonText}>Retry Sync</Text>
             </TouchableOpacity>
           </View>
-        ) : assignedBus ? (
+        ) : (
           <>
-            {/* HERO CARD: Live Verification & Payment Monitoring */}
-            <View style={styles.liveHeroCard}>
-              <View style={styles.liveHeroHeader}>
-                <View style={styles.livePulseTag}>
-                  <View style={styles.pulseDot} />
-                  <Text style={styles.livePulseText}>LIVE TICKETING READY</Text>
-                </View>
-                <Text style={styles.liveHeroSubTag}>⚡ Real-Time Sync</Text>
-              </View>
+            {/* Quick Services Section */}
+            <View style={styles.optionsSection}>
+              <Text style={styles.sectionHeading}>Quick Services</Text>
 
-              <Text style={styles.liveHeroTitle}>
-                Live Payment & Ticket Verification
-              </Text>
-              <Text style={styles.liveHeroDesc}>
-                Open real-time verification screen to scan passenger UPI tickets, receive sound chimes for payments, and inspect monthly passes.
-              </Text>
+              {/* 1. Today's Shift Collection Card -> Opens Live Verification */}
+              {assignedBus && (
+                <TouchableOpacity
+                  style={styles.summaryCard}
+                  onPress={handleOpenLiveVerification}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.summaryHeader}>
+                    <View style={styles.summaryTagRow}>
+                      <View style={styles.livePulseDot} />
+                      <Text style={styles.summaryEyebrow}>TODAY'S SHIFT COLLECTION • LIVE</Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e?.stopPropagation?.();
+                        onRefresh();
+                      }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Text style={styles.refreshLink}>🔄 Sync</Text>
+                    </TouchableOpacity>
+                  </View>
 
-              {/* Big CTA Button to go to Live Verification Screen */}
+                  <View style={styles.summaryRow}>
+                    <View>
+                      <Text style={styles.summaryAmount}>₹{totalCollection}</Text>
+                      <Text style={styles.summaryLabel}>Total UPI & QR Collections</Text>
+                    </View>
+                    <View style={styles.summaryBadge}>
+                      <Text style={styles.summaryBadgeNumber}>{paymentHistory.length}</Text>
+                      <Text style={styles.summaryBadgeLabel}>Tickets Paid</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* 2. SHOW BUS QR CODE HERO CARD */}
               <TouchableOpacity
-                style={styles.liveHeroButton}
-                onPress={handleOpenLiveVerification}
+                style={styles.qrOptionCard}
+                onPress={handleOpenQrCode}
                 activeOpacity={0.85}
               >
-                <View style={styles.liveHeroButtonContent}>
-                  <View style={styles.liveHeroButtonIcon}>
-                    <Text style={styles.liveHeroButtonEmoji}>⚡</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.liveHeroButtonTitle}>
-                      OPEN LIVE VERIFICATION
-                    </Text>
-                    <Text style={styles.liveHeroButtonSubtitle}>
-                      Bus {assignedBus.bus_no || assignedBus.bus_number || assignedBus.bus_id} • Tap to enter
-                    </Text>
-                  </View>
-                  <Text style={styles.liveHeroArrow}>›</Text>
+                <View style={[styles.gridIconBadge, { backgroundColor: 'rgba(99, 102, 241, 0.15)' }]}>
+                  <Text style={styles.gridEmoji}>📲</Text>
                 </View>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.qrBadgeRow}>
+                    <Text style={styles.qrBadgeText}>PASSENGER SCAN & PAY</Text>
+                  </View>
+                  <Text style={styles.qrCardTitle}>Show Bus QR Code</Text>
+                  <Text style={styles.qrCardSubtitle}>
+                    Display booking QR code for passengers to scan & pay on bus
+                  </Text>
+                </View>
+                <View style={styles.qrActionPill}>
+                  <Text style={styles.qrActionPillText}>Show QR ›</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Grid for Payment History & Bus Details */}
+              <View style={styles.gridContainer}>
+                {/* 3. PAYMENT HISTORY */}
+                <TouchableOpacity
+                  style={styles.gridCard}
+                  onPress={handleOpenPaymentHistory}
+                  activeOpacity={0.85}
+                >
+                  <View style={[styles.gridIconBadge, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                    <Text style={styles.gridEmoji}>📜</Text>
+                  </View>
+                  <Text style={styles.gridTitle}>Payment History</Text>
+                  <Text style={styles.gridDesc}>
+                    {paymentHistory.length} Tickets • ₹{totalCollection} Today
+                  </Text>
+                  <View style={styles.gridFooter}>
+                    <Text style={[styles.gridActionText, { color: colors.successStrong }]}>
+                      View Logs ›
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* 4. BUS DETAILS */}
+                <TouchableOpacity
+                  style={styles.gridCard}
+                  onPress={handleOpenBusDetails}
+                  activeOpacity={0.85}
+                >
+                  <View style={[styles.gridIconBadge, { backgroundColor: 'rgba(99, 102, 241, 0.15)' }]}>
+                    <Text style={styles.gridEmoji}>🚍</Text>
+                  </View>
+                  <Text style={styles.gridTitle}>Bus Details</Text>
+                  <Text style={styles.gridDesc} numberOfLines={2}>
+                    {assignedBus ? (assignedBus.bus_no || assignedBus.bus_id) : 'Not Assigned'} • Route Info
+                  </Text>
+                  <View style={styles.gridFooter}>
+                    <Text style={[styles.gridActionText, { color: colors.primaryText }]}>
+                      View Specs ›
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {/* 5. PROFILE CARD */}
+              <TouchableOpacity
+                style={styles.profileOptionCard}
+                onPress={handleOpenProfile}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.gridIconBadge, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
+                  <Text style={styles.gridEmoji}>👤</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.profileCardTitle}>Conductor Profile</Text>
+                  <Text style={styles.profileCardSubtitle}>
+                    {conductor?.name || 'Conductor'} ({conductor?.conductor_id || 'COND-XX'})
+                  </Text>
+                </View>
+                <Text style={styles.profileCardArrow}>›</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+      </ScrollView>
+
+
+
+      {/* ========================================================= */}
+      {/* MODAL: SHOW BUS QR CODE MODAL */}
+      {/* ========================================================= */}
+      <Modal
+        visible={showQr}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowQr(false)}
+      >
+        <Pressable style={styles.qrModalBackdrop} onPress={() => setShowQr(false)}>
+          <Pressable style={styles.qrModalCard} onPress={() => { }}>
+            <View style={styles.qrHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.qrTitle}>Bus Booking QR</Text>
+                <Text style={styles.qrSubtitle} numberOfLines={1}>
+                  {assignedBus?.bus_no || assignedBus?.bus_number || assignedBus?.bus_id || 'Assigned Bus'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={() => setShowQr(false)}
+              >
+                <Text style={styles.closeBtnText}>✕</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Assigned Bus Details Card */}
-            <View style={styles.busSection}>
-              <Text style={styles.sectionHeading}>Your Assigned Bus & Route</Text>
-
-              <View style={styles.busCard}>
-                <View style={styles.busCardTop}>
-                  <View style={styles.busIconContainer}>
-                    <Text style={styles.busEmoji}>🚍</Text>
-                  </View>
-                  <View style={styles.busNumberBlock}>
-                    <Text style={styles.busNumber}>
-                      {assignedBus.bus_no || assignedBus.bus_number || assignedBus.bus_id}
-                    </Text>
-                    <Text style={styles.busIdTag}>Bus ID: {assignedBus.bus_id}</Text>
-                  </View>
-                  <View style={styles.activeBadge}>
-                    <View style={styles.activeDot} />
-                    <Text style={styles.activeBadgeText}>ON DUTY</Text>
-                  </View>
-                </View>
-
-                {/* Route Flow */}
-                <View style={styles.routeBox}>
-                  <View style={styles.routeCol}>
-                    <Text style={styles.routeLabel}>FROM (ORIGIN)</Text>
-                    <Text style={styles.cityText} numberOfLines={1}>
-                      {assignedBus.origin || assignedBus.origin_city || 'Origin City'}
-                    </Text>
-                  </View>
-                  <View style={styles.arrowBlock}>
-                    <Text style={styles.routeArrow}>➔</Text>
-                  </View>
-                  <View style={styles.routeCol}>
-                    <Text style={styles.routeLabel}>TO (DESTINATION)</Text>
-                    <Text style={styles.cityText} numberOfLines={1}>
-                      {assignedBus.destination || assignedBus.destination_city || 'Destination City'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Meta details */}
-                <View style={styles.metaGrid}>
-                  <View style={styles.metaItem}>
-                    <Text style={styles.metaLabel}>FARE / RIDE</Text>
-                    <Text style={styles.metaValue}>₹{assignedBus.fare_amount || 50}</Text>
-                  </View>
-                  <View style={styles.metaItem}>
-                    <Text style={styles.metaLabel}>STATUS</Text>
-                    <Text style={[styles.metaValue, { color: colors.successBright }]}>
-                      {assignedBus.status || 'ACTIVE'}
-                    </Text>
-                  </View>
-                  <View style={styles.metaItem}>
-                    <Text style={styles.metaLabel}>PAYMENT MODES</Text>
-                    <Text style={styles.metaValue}>UPI & Pass</Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-
-            {/* Quick Feature Cards Grid */}
-            <View style={styles.featuresSection}>
-              <Text style={styles.sectionHeading}>Quick Operations</Text>
-
-              <View style={styles.featuresGrid}>
-                <TouchableOpacity
-                  style={styles.featureCard}
-                  onPress={handleOpenLiveVerification}
-                  activeOpacity={0.8}
-                >
-                  <View style={[styles.featureIconBadge, { backgroundColor: 'rgba(99, 102, 241, 0.15)' }]}>
-                    <Text style={styles.featureEmoji}>🎟️</Text>
-                  </View>
-                  <Text style={styles.featureTitle}>Live Passenger Feed</Text>
-                  <Text style={styles.featureDesc}>
-                    View instant ticket scans & payment status
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.featureCard}
-                  onPress={onRefresh}
-                  activeOpacity={0.8}
-                >
-                  <View style={[styles.featureIconBadge, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
-                    <Text style={styles.featureEmoji}>🔄</Text>
-                  </View>
-                  <Text style={styles.featureTitle}>Sync Shift Status</Text>
-                  <Text style={styles.featureDesc}>
-                    Refresh assigned bus & server connection
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </>
-        ) : (
-          /* Unassigned Bus Warning View */
-          <View style={styles.unassignedCard}>
-            <View style={styles.unassignedIconBadge}>
-              <Text style={styles.unassignedEmoji}>🛑</Text>
-            </View>
-            <Text style={styles.unassignedTitle}>No Bus Assigned</Text>
-            <Text style={styles.unassignedDescription}>
-              You currently do not have any active bus assigned to your conductor profile by the administrator.
-            </Text>
-            <View style={styles.instructionsBox}>
-              <Text style={styles.instructionsTitle}>How to get assigned?</Text>
-              <Text style={styles.instructionsText}>
-                1. Contact your bus fleet manager or admin.{'\n'}
-                2. Provide your Conductor ID:{' '}
-                <Text style={{ fontWeight: '800', color: colors.primaryText }}>
-                  {conductor?.conductor_id || 'your account'}
+            {assignedBus && (
+              <View style={styles.qrRouteBox}>
+                <Text style={styles.qrRouteText} numberOfLines={1}>
+                  {assignedBus.origin || assignedBus.origin_city || 'Origin'} ➔ {assignedBus.destination || assignedBus.destination_city || 'Destination'}
                 </Text>
-                .{'\n'}
-                3. After assignment, tap "Refresh Assignment" below.
-              </Text>
+              </View>
+            )}
+
+            <View style={styles.qrBox}>
+              <QRCode
+                value={busQrUrl}
+                size={230}
+              />
             </View>
+
+            <Text style={styles.qrScanHint}>
+              📲 Ask passengers to scan this QR code with any UPI app or Camera to buy ticket online.
+            </Text>
+
+            <TouchableOpacity style={styles.qrCloseButton} onPress={() => setShowQr(false)}>
+              <Text style={styles.qrCloseText}>Close QR Code</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ========================================================= */}
+      {/* MODAL 1: PAYMENT HISTORY MODAL */}
+      {/* ========================================================= */}
+      <Modal
+        visible={showHistoryModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowHistoryModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Payment History</Text>
+                <Text style={styles.modalSubtitle}>
+                  Bus {assignedBus?.bus_no || assignedBus?.bus_id || ''} • Total: ₹{totalCollection} ({paymentHistory.length} Tickets)
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={() => setShowHistoryModal(false)}
+              >
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {historyLoading ? (
+              <View style={styles.modalLoadingBox}>
+                <ActivityIndicator size="small" color={colors.primaryText} />
+                <Text style={styles.modalLoadingText}>Loading payments...</Text>
+              </View>
+            ) : paymentHistory.length === 0 ? (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyEmoji}>🧾</Text>
+                <Text style={styles.emptyTitle}>No verified payments today</Text>
+                <Text style={styles.emptyDesc}>
+                  Passenger payments for this bus will appear here in real time.
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={paymentHistory}
+                keyExtractor={(item) => String(item.ticket_id || Math.random())}
+                renderItem={({ item }) => {
+                  const isPass = item.razorpay_payment_id === 'monthly_pass';
+                  const time = item.created_at
+                    ? new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : 'Today';
+
+                  return (
+                    <View style={styles.historyItem}>
+                      <View style={styles.historyItemLeft}>
+                        <View style={[styles.historyBadge, isPass ? styles.passBadge : styles.upiBadge]}>
+                          <Text style={isPass ? styles.passBadgeText : styles.upiBadgeText}>
+                            {isPass ? 'PASS' : 'UPI'}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.historyTicketId}>#{item.ticket_id}</Text>
+                          <Text style={styles.historyRoute} numberOfLines={1}>
+                            {item.origin || 'Start'} ➔ {item.destination || 'End'}
+                          </Text>
+                          <Text style={styles.historyMeta}>
+                            {item.passenger_count || 1} Passenger(s) • {time}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.historyItemRight}>
+                        <Text style={isPass ? styles.historyAmountPass : styles.historyAmount}>
+                          {isPass ? 'Free Pass' : `₹${item.paidamount ?? item.amount ?? 0}`}
+                        </Text>
+                        <Text style={styles.historyStatusText}>✓ Verified</Text>
+                      </View>
+                    </View>
+                  );
+                }}
+              />
+            )}
+
             <TouchableOpacity
-              style={styles.refreshButton}
-              onPress={onRefresh}
-              activeOpacity={0.85}
+              style={styles.modalDoneBtn}
+              onPress={() => setShowHistoryModal(false)}
             >
-              <Text style={styles.refreshButtonText}>🔄 Refresh Assignment</Text>
+              <Text style={styles.modalDoneBtnText}>Close History</Text>
             </TouchableOpacity>
           </View>
-        )}
-      </ScrollView>
+        </View>
+      </Modal>
+
+      {/* ========================================================= */}
+      {/* MODAL 2: BUS DETAILS MODAL */}
+      {/* ========================================================= */}
+      <Modal
+        visible={showBusDetailsModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowBusDetailsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Bus & Route Details</Text>
+                <Text style={styles.modalSubtitle}>Assigned Fleet Vehicle Information</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={() => setShowBusDetailsModal(false)}
+              >
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {assignedBus ? (
+              <ScrollView style={{ maxHeight: 400 }}>
+                {/* Bus Number Hero Banner */}
+                <View style={styles.busDetailsHero}>
+                  <Text style={styles.busDetailsEmoji}>🚍</Text>
+                  <Text style={styles.busDetailsNumber}>
+                    {assignedBus.bus_no || assignedBus.bus_number || assignedBus.bus_id}
+                  </Text>
+                  <Text style={styles.busDetailsId}>ID: {assignedBus.bus_id}</Text>
+                  <View style={styles.busStatusPill}>
+                    <View style={styles.statusDot} />
+                    <Text style={styles.busStatusPillText}>{assignedBus.status || 'ACTIVE'}</Text>
+                  </View>
+                </View>
+
+                {/* Specs List */}
+                <View style={styles.specsList}>
+                  <View style={styles.specRow}>
+                    <Text style={styles.specLabel}>ORIGIN CITY</Text>
+                    <Text style={styles.specVal}>
+                      {assignedBus.origin || assignedBus.origin_city || 'Origin'}
+                    </Text>
+                  </View>
+                  <View style={styles.specRow}>
+                    <Text style={styles.specLabel}>DESTINATION CITY</Text>
+                    <Text style={styles.specVal}>
+                      {assignedBus.destination || assignedBus.destination_city || 'Destination'}
+                    </Text>
+                  </View>
+                  <View style={styles.specRow}>
+                    <Text style={styles.specLabel}>STANDARD FARE</Text>
+                    <Text style={styles.specVal}>₹{assignedBus.fare_amount || 50} per ride</Text>
+                  </View>
+                  <View style={styles.specRow}>
+                    <Text style={styles.specLabel}>ASSIGNED CONDUCTOR</Text>
+                    <Text style={styles.specVal}>{conductor?.name || 'You'}</Text>
+                  </View>
+                  <View style={styles.specRow}>
+                    <Text style={styles.specLabel}>OPERATOR FLEET</Text>
+                    <Text style={styles.specVal}>Shree Mateshwari Express</Text>
+                  </View>
+                </View>
+
+                {/* Quick Button to Show Bus QR */}
+                <TouchableOpacity
+                  style={styles.busDetailsQrBtn}
+                  onPress={() => {
+                    setShowBusDetailsModal(false);
+                    setShowQr(true);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.busDetailsQrBtnText}>📲 View Passenger Booking QR Code</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            ) : (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyEmoji}>🛑</Text>
+                <Text style={styles.emptyTitle}>No Bus Assigned</Text>
+                <Text style={styles.emptyDesc}>
+                  Please contact depot manager to assign a bus to your profile.
+                </Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={styles.modalDoneBtn}
+              onPress={() => setShowBusDetailsModal(false)}
+            >
+              <Text style={styles.modalDoneBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ========================================================= */}
+      {/* MODAL 3: PROFILE MODAL */}
+      {/* ========================================================= */}
+      <Modal
+        visible={showProfileModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowProfileModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Conductor Profile</Text>
+                <Text style={styles.modalSubtitle}>Employee Account Information</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={() => setShowProfileModal(false)}
+              >
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 420 }}>
+              {/* Profile Avatar Block */}
+              <View style={styles.profileModalHeader}>
+                <View style={styles.profileAvatarLarge}>
+                  <Text style={styles.profileAvatarLargeText}>
+                    {conductor?.name ? conductor.name.charAt(0).toUpperCase() : 'C'}
+                  </Text>
+                </View>
+                <Text style={styles.profileModalName}>{conductor?.name || 'Conductor'}</Text>
+                <Text style={styles.profileModalId}>{conductor?.conductor_id || 'COND-XX'}</Text>
+                <View style={styles.profileVerifiedBadge}>
+                  <Text style={styles.profileVerifiedText}>✓ ACTIVE & VERIFIED</Text>
+                </View>
+              </View>
+
+              {/* Conductor Details */}
+              <View style={styles.specsList}>
+                <View style={styles.specRow}>
+                  <Text style={styles.specLabel}>MOBILE NUMBER</Text>
+                  <Text style={styles.specVal}>{conductor?.mobile || 'N/A'}</Text>
+                </View>
+                <View style={styles.specRow}>
+                  <Text style={styles.specLabel}>EMAIL ADDRESS</Text>
+                  <Text style={styles.specVal}>{conductor?.email || 'N/A'}</Text>
+                </View>
+                <View style={styles.specRow}>
+                  <Text style={styles.specLabel}>ASSIGNED BUS ID</Text>
+                  <Text style={[styles.specVal, { color: colors.primaryText, fontWeight: '800' }]}>
+                    {assignedBus?.bus_id || conductor?.assigned_bus_id || 'None'}
+                  </Text>
+                </View>
+                <View style={styles.specRow}>
+                  <Text style={styles.specLabel}>DEPOT / PORTAL</Text>
+                  <Text style={styles.specVal}>Shree Mateshwari Bus Service</Text>
+                </View>
+              </View>
+
+              {/* Logout Action Inside Profile */}
+              <TouchableOpacity
+                style={styles.profileLogoutBtn}
+                onPress={handleLogout}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.profileLogoutBtnText}>🚪 Log Out From App</Text>
+              </TouchableOpacity>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.modalDoneBtn}
+              onPress={() => setShowProfileModal(false)}
+            >
+              <Text style={styles.modalDoneBtnText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -475,7 +884,7 @@ const styles = StyleSheet.create({
   },
   container: {
     padding: 18,
-    paddingBottom: 40,
+    paddingBottom: 80,
   },
   greetingCard: {
     backgroundColor: colors.surface,
@@ -494,7 +903,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 6,
+    marginBottom: 10,
   },
   greetingEyebrow: {
     color: colors.primaryText,
@@ -521,10 +930,261 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
   },
-  greetingSubtext: {
-    color: colors.textMuted,
+  busPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+  },
+  busPillDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.success,
+    marginRight: 6,
+  },
+  busPillText: {
+    color: colors.textBody,
     fontSize: 12,
-    lineHeight: 18,
+    flex: 1,
+  },
+  boldText: {
+    fontWeight: '800',
+    color: colors.textStrong,
+  },
+  optionsSection: {
+    marginBottom: 16,
+  },
+  sectionHeading: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.textStrong,
+    marginBottom: 12,
+  },
+  summaryCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+    marginBottom: 12,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  summaryTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  livePulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.success,
+    marginRight: 6,
+  },
+  summaryEyebrow: {
+    color: colors.primaryText,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  refreshLink: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  summaryAmount: {
+    color: colors.successStrong,
+    fontSize: 24,
+    fontWeight: '900',
+  },
+  summaryLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  summaryBadge: {
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  summaryBadgeNumber: {
+    color: colors.primaryText,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  summaryBadgeLabel: {
+    color: colors.primaryText,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  summaryFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 14,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+  },
+  summaryFooterText: {
+    color: colors.primaryText,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  summaryFooterArrow: {
+    color: colors.primaryText,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  qrOptionCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(99, 102, 241, 0.4)',
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
+    marginBottom: 12,
+  },
+  qrBadgeRow: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginBottom: 3,
+  },
+  qrBadgeText: {
+    color: colors.primaryText,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  qrCardTitle: {
+    color: colors.textStrong,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  qrCardSubtitle: {
+    color: colors.textMuted,
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 2,
+    marginRight: 6,
+  },
+  qrActionPill: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+  },
+  qrActionPillText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  gridContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  gridCard: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  gridIconBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  gridEmoji: {
+    fontSize: 22,
+  },
+  gridTitle: {
+    color: colors.textStrong,
+    fontSize: 14,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+  gridDesc: {
+    color: colors.textMuted,
+    fontSize: 11,
+    lineHeight: 15,
+    marginBottom: 10,
+  },
+  gridFooter: {
+    marginTop: 'auto',
+  },
+  gridActionText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  profileOptionCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  profileCardTitle: {
+    color: colors.textStrong,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  profileCardSubtitle: {
+    color: colors.textMuted,
+    fontSize: 11,
+    marginTop: 1,
+  },
+  profileCardArrow: {
+    color: colors.textSubtle,
+    fontSize: 20,
+    fontWeight: '800',
   },
   stateBox: {
     backgroundColor: colors.surface,
@@ -576,352 +1236,407 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
   },
-  liveHeroCard: {
-    backgroundColor: colors.primary,
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 20,
+    zIndex: 999,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
     elevation: 8,
-    borderWidth: 1.5,
-    borderColor: 'rgba(99, 102, 241, 0.5)',
   },
-  liveHeroHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  livePulseTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.4)',
-  },
-  pulseDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: colors.successBright,
-    marginRight: 6,
-  },
-  livePulseText: {
-    color: colors.successBright,
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.6,
-  },
-  liveHeroSubTag: {
-    color: colors.primaryMuted,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  liveHeroTitle: {
-    color: '#ffffff',
-    fontSize: 20,
-    fontWeight: '900',
-    marginBottom: 6,
-    lineHeight: 26,
-  },
-  liveHeroDesc: {
-    color: colors.primaryMuted,
-    fontSize: 12,
-    lineHeight: 18,
-    marginBottom: 18,
-  },
-  liveHeroButton: {
-    backgroundColor: colors.primarySurface,
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.6)',
-  },
-  liveHeroButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  liveHeroButtonIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  fabIconBackground: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    borderWidth: 2,
+    borderColor: '#ffffff',
   },
-  liveHeroButtonEmoji: {
-    fontSize: 22,
+  // QR Code Modal Styles
+  qrModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
   },
-  liveHeroButtonTitle: {
-    color: '#ffffff',
-    fontSize: 14,
+  qrModalCard: {
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: colors.surface,
+    borderRadius: 24,
+    padding: 22,
+    alignItems: 'center',
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  qrHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    width: '100%',
+    marginBottom: 10,
+  },
+  qrTitle: {
+    fontSize: 18,
     fontWeight: '900',
-    letterSpacing: 0.5,
+    color: colors.textStrong,
   },
-  liveHeroButtonSubtitle: {
-    color: colors.successBright,
-    fontSize: 11,
+  qrSubtitle: {
+    fontSize: 12,
+    color: colors.textMuted,
     fontWeight: '700',
     marginTop: 2,
   },
-  liveHeroArrow: {
-    color: '#ffffff',
-    fontSize: 24,
-    fontWeight: '900',
-    marginLeft: 8,
+  qrRouteBox: {
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 10,
+    marginBottom: 16,
+    width: '100%',
+    alignItems: 'center',
   },
-  sectionHeading: {
-    fontSize: 15,
+  qrRouteText: {
+    color: colors.primaryText,
+    fontSize: 12,
     fontWeight: '800',
-    color: colors.textStrong,
-    marginBottom: 12,
   },
-  busSection: {
-    marginBottom: 20,
-  },
-  busCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 22,
-    padding: 18,
-    borderWidth: 1,
+  qrBox: {
+    padding: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    borderWidth: 2,
     borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 3,
   },
-  busCardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
+  qrScanHint: {
+    fontSize: 11,
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 16,
+    marginTop: 14,
+    marginBottom: 16,
   },
-  busIconContainer: {
-    width: 48,
-    height: 48,
+  qrCloseButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    width: '100%',
     borderRadius: 14,
-    backgroundColor: colors.primarySoft,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
   },
-  busEmoji: {
-    fontSize: 24,
+  qrCloseText: {
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 13,
   },
-  busNumberBlock: {
+  // Modal General Styles
+  modalOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    justifyContent: 'flex-end',
   },
-  busNumber: {
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 22,
+    maxHeight: '85%',
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    marginBottom: 16,
+  },
+  modalTitle: {
     color: colors.textStrong,
     fontSize: 18,
     fontWeight: '900',
   },
-  busIdTag: {
+  modalSubtitle: {
     color: colors.textMuted,
     fontSize: 11,
-    fontWeight: '700',
+    marginTop: 2,
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeBtnText: {
+    color: colors.textMuted,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  modalLoadingBox: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  modalLoadingText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: 8,
+  },
+  emptyBox: {
+    padding: 30,
+    alignItems: 'center',
+  },
+  emptyEmoji: {
+    fontSize: 36,
+    marginBottom: 8,
+  },
+  emptyTitle: {
+    color: colors.textStrong,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  emptyDesc: {
+    color: colors.textMuted,
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  historyItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+  },
+  historyItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
+  },
+  historyBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginRight: 10,
+  },
+  upiBadge: {
+    backgroundColor: colors.successSoft,
+  },
+  passBadge: {
+    backgroundColor: colors.warningSoft,
+  },
+  upiBadgeText: {
+    color: colors.successText,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  passBadgeText: {
+    color: colors.warningText,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  historyTicketId: {
+    color: colors.textStrong,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  historyRoute: {
+    color: colors.textBody,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  historyMeta: {
+    color: colors.textSubtle,
+    fontSize: 10,
     marginTop: 1,
   },
-  activeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
+  historyItemRight: {
+    alignItems: 'flex-end',
   },
-  activeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.success,
-    marginRight: 5,
-  },
-  activeBadgeText: {
+  historyAmount: {
     color: colors.successStrong,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  historyAmountPass: {
+    color: colors.warningStrong,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  historyStatusText: {
+    color: colors.success,
     fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    fontWeight: '700',
   },
-  routeBox: {
-    backgroundColor: colors.background,
-    borderRadius: 14,
-    padding: 14,
-    flexDirection: 'row',
+  modalDoneBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 16,
+    paddingVertical: 14,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
+    marginTop: 16,
   },
-  routeCol: {
-    flex: 1,
-  },
-  arrowBlock: {
-    paddingHorizontal: 8,
-  },
-  routeLabel: {
-    color: colors.textSubtle,
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    marginBottom: 3,
-  },
-  cityText: {
-    color: colors.textStrong,
+  modalDoneBtnText: {
+    color: '#ffffff',
     fontSize: 14,
     fontWeight: '800',
   },
-  routeArrow: {
-    color: colors.primaryText,
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  metaGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  busDetailsHero: {
     backgroundColor: colors.background,
-    borderRadius: 12,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  metaItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  metaLabel: {
-    color: colors.textSubtle,
-    fontSize: 9,
-    fontWeight: '800',
-    marginBottom: 2,
-  },
-  metaValue: {
-    color: colors.textStrong,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  featuresSection: {
-    marginBottom: 10,
-  },
-  featuresGrid: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  featureCard: {
-    flex: 1,
-    backgroundColor: colors.surface,
     borderRadius: 18,
-    padding: 16,
+    padding: 18,
+    alignItems: 'center',
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.border,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
   },
-  featureIconBadge: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  featureEmoji: {
-    fontSize: 20,
-  },
-  featureTitle: {
-    color: colors.textStrong,
-    fontSize: 13,
-    fontWeight: '800',
+  busDetailsEmoji: {
+    fontSize: 36,
     marginBottom: 4,
   },
-  featureDesc: {
-    color: colors.textMuted,
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  unassignedCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 24,
-    padding: 24,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#fca5a5',
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  unassignedIconBadge: {
-    width: 64,
-    height: 64,
-    borderRadius: 22,
-    backgroundColor: '#fee2e2',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-  },
-  unassignedEmoji: {
-    fontSize: 32,
-  },
-  unassignedTitle: {
-    color: '#991b1b',
-    fontSize: 19,
+  busDetailsNumber: {
+    color: colors.textStrong,
+    fontSize: 22,
     fontWeight: '900',
-    marginBottom: 6,
   },
-  unassignedDescription: {
+  busDetailsId: {
     color: colors.textMuted,
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 19,
-    marginBottom: 18,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 2,
   },
-  instructionsBox: {
+  busStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 10,
+  },
+  busStatusPillText: {
+    color: colors.successStrong,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  specsList: {
     backgroundColor: colors.background,
-    borderRadius: 14,
-    padding: 16,
-    width: '100%',
-    marginBottom: 20,
+    borderRadius: 16,
+    padding: 14,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  instructionsTitle: {
+  specRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSubtle,
+  },
+  specLabel: {
+    color: colors.textSubtle,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  specVal: {
     color: colors.textStrong,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  busDetailsQrBtn: {
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 14,
+  },
+  busDetailsQrBtnText: {
+    color: colors.primaryText,
     fontSize: 12,
     fontWeight: '800',
-    marginBottom: 8,
   },
-  instructionsText: {
-    color: colors.textBody,
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  refreshButton: {
-    backgroundColor: colors.primarySurface,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 14,
-    width: '100%',
+  profileModalHeader: {
     alignItems: 'center',
+    marginBottom: 16,
   },
-  refreshButtonText: {
+  profileAvatarLarge: {
+    width: 68,
+    height: 68,
+    borderRadius: 24,
+    backgroundColor: colors.primarySurface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: colors.primaryText,
+  },
+  profileAvatarLargeText: {
     color: '#ffffff',
+    fontSize: 28,
+    fontWeight: '900',
+  },
+  profileModalName: {
+    color: colors.textStrong,
+    fontSize: 19,
+    fontWeight: '900',
+  },
+  profileModalId: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  profileVerifiedBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  profileVerifiedText: {
+    color: colors.successStrong,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+  },
+  profileLogoutBtn: {
+    backgroundColor: '#fee2e2',
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  profileLogoutBtnText: {
+    color: '#b91c1c',
     fontSize: 13,
     fontWeight: '800',
-    letterSpacing: 0.5,
   },
 });

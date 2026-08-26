@@ -20,13 +20,12 @@ import QRCode from 'react-native-qrcode-svg';
 import Svg, { G, Path, Rect } from 'react-native-svg';
 import colors from '../theme/colors';
 
-const API_BASE_URL = 'http://10.0.2.2:8000/api/v1'; // Localhost for Android Emulator
 
 export default function LiveVerificationScreen({ route, navigation }) {
   const busId = route?.params?.busId || 'BUS001';
   const busNo = route?.params?.busNo || '';
   const [showQr, setShowQr] = useState(false);
-  
+
   const [verifiedTickets, setVerifiedTickets] = useState([]);
   const [latestTicket, setLatestTicket] = useState(null);
   const [selectedTicket, setSelectedTicket] = useState(null);
@@ -68,31 +67,32 @@ export default function LiveVerificationScreen({ route, navigation }) {
     const fetchUpdates = async () => {
       try {
         let tickets = [];
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+
         try {
-          let res;
-          try {
-            res = await fetch(`http://192.168.1.8:8000/api/v1/tickets/${busId}`);
-          } catch (e1) {
-            res = await fetch(`https://api.shreemateshwaribus.com/api/v1/tickets/${busId}`);
-          }
+          const res = await fetch(`https://api.shreemateshwaribus.com/api/v1/tickets/${busId}`, {
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
 
           if (res && res.status === 200) {
             const data = await res.json();
-            tickets = data.data || [];
+            tickets = Array.isArray(data.data) ? data.data : [];
             setIsOnline(true);
           } else {
-            tickets = [];
             setIsOnline(false);
           }
         } catch (err) {
-          tickets = [];
+          clearTimeout(timeoutId);
           setIsOnline(false);
         }
 
-
         await processIncomingTickets(tickets, saveKnownIds);
 
-        if (firstLoadRef.current) firstLoadRef.current = false;
+        if (firstLoadRef.current) {
+          firstLoadRef.current = false;
+        }
       } catch (error) {
         setIsOnline(false);
       }
@@ -102,7 +102,6 @@ export default function LiveVerificationScreen({ route, navigation }) {
       await loadKnownIds();
       await fetchUpdates();
       const interval = setInterval(fetchUpdates, 2000);
-      // store interval id on ref so it can be cleared
       return () => clearInterval(interval);
     };
 
@@ -119,33 +118,26 @@ export default function LiveVerificationScreen({ route, navigation }) {
 
   const processIncomingTickets = async (tickets, persistFn) => {
     let sum = 0;
-
-    if (firstLoadRef.current) {
-      tickets.forEach((ticket) => {
-        sum += ticket.amount;
-        knownTicketIds.current.add(ticket.ticket_id);
-      });
-      setVerifiedTickets([...tickets].reverse());
-      setTotalCollection(sum);
-      if (persistFn) await persistFn();
-      return;
-    }
-
-    let newTicketsFound = false;
+    const isFirst = firstLoadRef.current;
 
     tickets.forEach((ticket) => {
-      sum += ticket.amount;
-      if (!knownTicketIds.current.has(ticket.ticket_id)) {
-        knownTicketIds.current.add(ticket.ticket_id);
-        newTicketsFound = true;
+      const amt = parseFloat(ticket.paidamount) || parseFloat(ticket.amount) || 0;
+      if (ticket.razorpay_payment_id !== 'monthly_pass') {
+        sum += amt;
+      }
+
+      if (!isFirst && !knownTicketIds.current.has(ticket.ticket_id)) {
         triggerConductorAlert(ticket);
       }
+      knownTicketIds.current.add(ticket.ticket_id);
     });
 
-    if (newTicketsFound) {
-      setVerifiedTickets([...tickets].reverse());
-      setTotalCollection(sum);
-      if (persistFn) await persistFn();
+    // Always update list so it never stays stuck or empty
+    setVerifiedTickets([...tickets].reverse());
+    setTotalCollection(sum);
+
+    if (persistFn) {
+      await persistFn();
     }
   };
 
@@ -155,10 +147,7 @@ export default function LiveVerificationScreen({ route, navigation }) {
 
     playVerificationChime();
     Vibration.vibrate([0, 500, 200, 500]);
-    // Do not auto-dismiss the overlay; allow user to tap to dismiss.
 
-    // If app is backgrounded or inactive, also send a local notification so
-    // tapping it will open the Notification screen.
     if (appState.current !== 'active') {
       try {
         Notifications.scheduleNotificationAsync({
@@ -183,10 +172,19 @@ export default function LiveVerificationScreen({ route, navigation }) {
         <View style={styles.headerLeft}>
           <TouchableOpacity
             style={styles.exitShiftButton}
-            onPress={() => navigation.navigate('ShiftSelect')}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate('ShiftSelect', {
+                  conductor: route?.params?.conductor,
+                  assignedBus: route?.params?.assignedBus,
+                });
+              }
+            }}
+            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
           >
-            <Text style={styles.exitShiftText}>‹ Shift</Text>
+            <Text style={styles.exitShiftText}>‹</Text>
           </TouchableOpacity>
           <View>
             <Text style={styles.busTitle}>{busNo || busId}</Text>
@@ -196,6 +194,7 @@ export default function LiveVerificationScreen({ route, navigation }) {
             </View>
           </View>
         </View>
+
 
         <View style={styles.collectionBadge}>
           <Text style={styles.collectionLabel}>TOTAL UPI</Text>
@@ -218,7 +217,7 @@ export default function LiveVerificationScreen({ route, navigation }) {
             >
               <View style={styles.cardHeader}>
                 <Text style={styles.ticketId}>{item.ticket_id}</Text>
-                <View style={ item.razorpay_payment_id == 'monthly_pass' ? styles.verifiedBadge : styles.oneTimeBadge }>
+                <View style={item.razorpay_payment_id == 'monthly_pass' ? styles.verifiedBadge : styles.oneTimeBadge}>
                   <Text style={item.razorpay_payment_id == 'monthly_pass' ? styles.verifiedBadgeText : styles.oneTimeBadgeText}>
                     {item.razorpay_payment_id == 'monthly_pass' ? "Monthly Pass" : "One Time"}
                   </Text>
@@ -231,12 +230,12 @@ export default function LiveVerificationScreen({ route, navigation }) {
               </View>
 
               <View style={styles.cardFooter}>
-                <Text style={styles.amountText}> {item.razorpay_payment_id == 'monthly_pass' ? "" :  "₹" + item.amount }</Text>
-               <Text style={styles.timeText}>{item.created_at ? item.created_at.split('T')[1].substring(0, 5) : 'Just Now'}</Text>
+                <Text style={styles.amountText}> {item.razorpay_payment_id == 'monthly_pass' ? "" : "₹" + item.amount}</Text>
+                <Text style={styles.timeText}>{item.created_at ? item.created_at.split('T')[1].substring(0, 5) : 'Just Now'}</Text>
               </View>
               <Text style={styles.viewDetailsText}>Tap to view full details  ›</Text>
             </TouchableOpacity>
-          )}  
+          )}
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>Waiting for passenger scans...</Text>
@@ -257,9 +256,9 @@ export default function LiveVerificationScreen({ route, navigation }) {
             </View>
 
             <Text style={styles.overlayTitle}>PAYMENT RECEIVED</Text>
-             <Text style={latestTicket.razorpay_payment_id =='monthly_pass' ? styles.overlayAmountPass : styles.overlayAmount}>
-                           {latestTicket.razorpay_payment_id =='monthly_pass' ? 'Monthly Pass' : `₹${latestTicket.amount}`}
-                         </Text>
+            <Text style={latestTicket.razorpay_payment_id == 'monthly_pass' ? styles.overlayAmountPass : styles.overlayAmount}>
+              {latestTicket.razorpay_payment_id == 'monthly_pass' ? 'Monthly Pass' : `₹${latestTicket.amount}`}
+            </Text>
             <View style={styles.overlayDetailsBox}>
               <Text style={styles.overlayDetailText}>
                 <Text style={styles.bold}>Tickets:</Text> {latestTicket.ticket_id}
@@ -287,7 +286,7 @@ export default function LiveVerificationScreen({ route, navigation }) {
         onRequestClose={() => setSelectedTicket(null)}
       >
         <Pressable style={styles.detailsBackdrop} onPress={() => setSelectedTicket(null)}>
-          <Pressable style={styles.detailsSheet} onPress={() => {}}>
+          <Pressable style={styles.detailsSheet} onPress={() => { }}>
             {selectedTicket && (
               <>
                 <View style={styles.sheetHandle} />
@@ -330,22 +329,22 @@ export default function LiveVerificationScreen({ route, navigation }) {
                     <Text style={styles.detailsLabel}>PASSENGERS</Text>
                     <Text style={styles.detailsValue}>{selectedTicket.passenger_count ?? 0}</Text>
                   </View>
-                       <View style={styles.detailCell}>
+                  <View style={styles.detailCell}>
                     <Text style={styles.detailsLabel}>TIME</Text>
                     <Text style={styles.detailsValue}>
                       {selectedTicket.created_at ? new Date(selectedTicket.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just Now'}
                     </Text>
                   </View>
-                  { selectedTicket.razorpay_payment_id !== 'monthly_pass' && ( <>
-                  <View style={styles.detailCell}>
-                    <Text style={styles.detailsLabel}>FARE</Text>
-                    <Text style={styles.detailsValue}>₹{selectedTicket.amount ?? 0}</Text>
-                  </View>
-                  <View style={styles.detailCell}>
-                    <Text style={styles.detailsLabel}>DISCOUNT</Text>
-                    <Text style={styles.cashbackValue}>₹{selectedTicket.cashback ?? 0}</Text>
-                  </View>
-                 </> )}
+                  {selectedTicket.razorpay_payment_id !== 'monthly_pass' && (<>
+                    <View style={styles.detailCell}>
+                      <Text style={styles.detailsLabel}>FARE</Text>
+                      <Text style={styles.detailsValue}>₹{selectedTicket.amount ?? 0}</Text>
+                    </View>
+                    <View style={styles.detailCell}>
+                      <Text style={styles.detailsLabel}>DISCOUNT</Text>
+                      <Text style={styles.cashbackValue}>₹{selectedTicket.cashback ?? 0}</Text>
+                    </View>
+                  </>)}
                 </View>
 
                 {selectedTicket.razorpay_payment_id !== 'monthly_pass' && (
@@ -367,7 +366,7 @@ export default function LiveVerificationScreen({ route, navigation }) {
         onRequestClose={() => setShowQr(false)}
       >
         <Pressable style={styles.qrModalBackdrop} onPress={() => setShowQr(false)}>
-          <Pressable style={styles.qrModalCard} onPress={() => {}}>
+          <Pressable style={styles.qrModalCard} onPress={() => { }}>
             <Text style={styles.qrTitle}>Bus QR</Text>
             <View style={styles.qrBox}>
               <QRCode
@@ -385,15 +384,15 @@ export default function LiveVerificationScreen({ route, navigation }) {
 
       <TouchableOpacity style={styles.fab} onPress={() => setShowQr(true)} activeOpacity={0.85}>
         <View style={styles.fabIconBackground}>
-    <Svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" fill={colors.textOnPrimary} class="bi bi-qr-code" viewBox="0 0 16 16">
-  <Path d="M2 2h2v2H2z"/>
-  <Path d="M6 0v6H0V0zM5 1H1v4h4zM4 12H2v2h2z"/>
-  <Path d="M6 10v6H0v-6zm-5 1v4h4v-4zm11-9h2v2h-2z"/>
-  <Path d="M10 0v6h6V0zm5 1v4h-4V1zM8 1V0h1v2H8v2H7V1zm0 5V4h1v2zM6 8V7h1V6h1v2h1V7h5v1h-4v1H7V8zm0 0v1H2V8H1v1H0V7h3v1zm10 1h-1V7h1zm-1 0h-1v2h2v-1h-1zm-4 0h2v1h-1v1h-1zm2 3v-1h-1v1h-1v1H9v1h3v-2zm0 0h3v1h-2v1h-1zm-4-1v1h1v-2H7v1z"/>
-  <Path d="M7 12h1v3h4v1H7zm9 2v2h-3v-1h2v-1z"/>
-</Svg>
+          <Svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" fill={colors.textOnPrimary} class="bi bi-qr-code" viewBox="0 0 16 16">
+            <Path d="M2 2h2v2H2z" />
+            <Path d="M6 0v6H0V0zM5 1H1v4h4zM4 12H2v2h2z" />
+            <Path d="M6 10v6H0v-6zm-5 1v4h4v-4zm11-9h2v2h-2z" />
+            <Path d="M10 0v6h6V0zm5 1v4h-4V1zM8 1V0h1v2H8v2H7V1zm0 5V4h1v2zM6 8V7h1V6h1v2h1V7h5v1h-4v1H7V8zm0 0v1H2V8H1v1H0V7h3v1zm10 1h-1V7h1zm-1 0h-1v2h2v-1h-1zm-4 0h2v1h-1v1h-1zm2 3v-1h-1v1h-1v1H9v1h3v-2zm0 0h3v1h-2v1h-1zm-4-1v1h1v-2H7v1z" />
+            <Path d="M7 12h1v3h4v1H7zm9 2v2h-3v-1h2v-1z" />
+          </Svg>
 
-               </View>
+        </View>
       </TouchableOpacity>
 
     </SafeAreaView>
@@ -420,18 +419,16 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   exitShiftButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 2,
     borderRadius: 8,
     marginRight: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+
   },
   exitShiftText: {
     color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '600',
   },
   busTitle: {
     color: colors.textOnPrimary,
@@ -455,7 +452,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-   overlayAmountPass: {
+  overlayAmountPass: {
     fontSize: 20,
     fontWeight: '900',
     color: colors.warningStrong,
@@ -527,13 +524,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
-    },
+  },
   verifiedBadgeText: {
     color: colors.successText,
     fontSize: 10,
     fontWeight: '800',
   },
-    oneTimeBadgeText: {
+  oneTimeBadgeText: {
     color: colors.warningText,
     fontSize: 10,
     fontWeight: '800',
@@ -697,7 +694,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     marginTop: 4,
-  
+
   },
   transactionText: {
     color: colors.textSecondary,

@@ -58,6 +58,9 @@ def init_database():
         origin VARCHAR(100),
         destination VARCHAR(100),
         passenger_count INT DEFAULT 1,
+        conductor_id VARCHAR(50) NULL,
+        bus_number VARCHAR(50) NULL,
+        payment_mode VARCHAR(20) DEFAULT 'UPI',
         discount_reason VARCHAR(255),
         created_at VARCHAR(50),
         updated_at VARCHAR(50),
@@ -65,7 +68,33 @@ def init_database():
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
 
+    # Column Migrations for payments table
+    cursor.execute("SHOW COLUMNS FROM payments")
+    existing_cols = [r[0] if isinstance(r, tuple) else r["Field"] for r in cursor.fetchall()]
+    if "conductor_id" not in existing_cols:
+        cursor.execute("ALTER TABLE payments ADD COLUMN conductor_id VARCHAR(50) NULL")
+        print("[MIGRATION] Added conductor_id column to payments")
+    if "bus_number" not in existing_cols:
+        cursor.execute("ALTER TABLE payments ADD COLUMN bus_number VARCHAR(50) NULL")
+        print("[MIGRATION] Added bus_number column to payments")
+    if "payment_mode" not in existing_cols:
+        cursor.execute("ALTER TABLE payments ADD COLUMN payment_mode VARCHAR(20) DEFAULT 'UPI'")
+        print("[MIGRATION] Added payment_mode column to payments")
+
+    # Auto-backfill conductor_id and bus_number for existing records if null
+    try:
+        cursor.execute("""
+            UPDATE payments p
+            JOIN buses b ON p.bus_id = b.bus_id
+            SET p.conductor_id = b.current_conductor_id,
+                p.bus_number = b.bus_number
+            WHERE p.conductor_id IS NULL AND b.current_conductor_id IS NOT NULL
+        """)
+    except Exception as e_backfill:
+        print("[MIGRATION BACKFILL WARNING]:", e_backfill)
+
     # Table: push_token
+
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS push_token (
         id INT AUTO_INCREMENT PRIMARY KEY,

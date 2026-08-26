@@ -7,8 +7,10 @@ import { View, ActivityIndicator } from 'react-native';
 import LoginScreen from './screens/LoginScreen';
 import ShiftSelectScreen from './screens/ShiftSelectScreen';
 import LiveVerificationScreen from './screens/LiveVerificationScreen';
+import PaymentHistoryScreen from './screens/PaymentHistoryScreen';
 import NotificationScreen from './screens/NotificationScreen';
 import * as Notifications from 'expo-notifications';
+
 import * as Device from 'expo-device';
 import { createNavigationContainerRef } from '@react-navigation/native';
 import { Platform } from 'react-native';
@@ -162,8 +164,10 @@ export default function App() {
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="ShiftSelect" component={ShiftSelectScreen} />
         <Stack.Screen name="LiveVerification" component={LiveVerificationScreen} />
+        <Stack.Screen name="PaymentHistory" component={PaymentHistoryScreen} />
         <Stack.Screen name="Notification" component={NotificationScreen} />
       </Stack.Navigator>
+
     </NavigationContainer>
   );
 }

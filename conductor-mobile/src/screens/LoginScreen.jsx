@@ -16,10 +16,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import colors from '../theme/colors';
 
-const PRIMARY_API = 'http://192.168.1.8:8000/api/v1/conductor/login';
-const LOCAL_API = Platform.OS === 'android'
-  ? 'http://192.168.1.8:8000/api/v1/conductor/login'
-  : 'http://localhost:8000/api/v1/conductor/login';
+const PRIMARY_API = 'https://api.shreemateshwaribus.com/api/v1/conductor/login';
 
 export default function LoginScreen({ navigation }) {
   const [identifier, setIdentifier] = useState('');

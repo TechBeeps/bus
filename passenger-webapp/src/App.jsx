@@ -28,7 +28,7 @@ import TicketSuccess from "./pages/TicketSuccess";
 import MonthlyPassResult from "./pages/MonthlyPassResult";
 
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+
 // hi g
 function App() {
   return (

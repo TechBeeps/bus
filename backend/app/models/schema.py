@@ -33,10 +33,16 @@ class Payment(Base):
     origin = Column(String(100), nullable=True)
     destination = Column(String(100), nullable=True)
     passenger_count = Column(Integer, default=1)
+    conductor_id = Column(String(50), nullable=True)
+    bus_number = Column(String(50), nullable=True)
+    payment_mode = Column(String(20), default="UPI")  # 'UPI' or 'PASS'
+
+
     discount_reason = Column(String(255), nullable=True)
     created_at = Column(String(50), nullable=True)
     updated_at = Column(String(50), nullable=True)
     paid_at = Column(String(50), nullable=True)
+
 
 
 class PushToken(Base):
